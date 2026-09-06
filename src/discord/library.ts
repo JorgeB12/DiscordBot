@@ -447,6 +447,14 @@ export async function handleLibraryComponent(
       return true;
     }
     if (action === "copy") {
+      if (playlist.ownerId === member.id) {
+        await interaction.reply({ content: `**${playlist.name}** ya es tuya: está en \`/playlist lista\`.`, ephemeral: true });
+        return true;
+      }
+      if (findPlaylist(member.id, playlist.name)) {
+        await interaction.reply({ content: `Ya tienes una playlist llamada **${playlist.name}**; no la copio otra vez.`, ephemeral: true });
+        return true;
+      }
       try {
         const copy = copyPlaylist(playlist.id, member.id, member.displayName);
         await interaction.reply({ content: `✅ Guardada como **${copy.name}** en tus playlists.`, ephemeral: true });

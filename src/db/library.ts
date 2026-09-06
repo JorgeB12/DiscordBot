@@ -178,9 +178,9 @@ export function removeTrack(id: number, position: number): LibrarySong | null {
 export function copyPlaylist(id: number, ownerId: string, ownerName: string): Playlist {
   const source = getPlaylist(id);
   if (!source) throw new Error("Esa playlist ya no existe.");
-  let name = source.name;
-  if (findPlaylist(ownerId, name)) name = `${source.name} (de ${source.ownerName})`.slice(0, LIMITS.nameLength);
-  const copy = createPlaylist(ownerId, ownerName, name);
+  if (source.ownerId === ownerId) throw new Error("Esa playlist ya es tuya.");
+  if (findPlaylist(ownerId, source.name)) throw new Error(`Ya tienes una playlist llamada **${source.name}**.`);
+  const copy = createPlaylist(ownerId, ownerName, source.name);
   addTracks(copy.id, playlistTracks(id));
   return getPlaylist(copy.id)!;
 }
