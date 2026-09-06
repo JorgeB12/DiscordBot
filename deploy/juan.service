@@ -1,0 +1,23 @@
+[Unit]
+Description=Juan Discord music bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/juan
+Environment=NODE_ENV=production
+EnvironmentFile=/home/ubuntu/juan/.env
+ExecStart=/usr/bin/node dist/index.js
+Restart=always
+RestartSec=5
+# Prioridad de CPU alta para que el envío de audio no se entrecorte en VMs de un núcleo.
+Nice=-5
+KillSignal=SIGTERM
+TimeoutStopSec=20
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
