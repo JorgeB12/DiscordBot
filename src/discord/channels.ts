@@ -1,5 +1,6 @@
 import { ChannelType, type Guild, type GuildTextBasedChannel, type VoiceBasedChannel } from "discord.js";
 import { config } from "../config.js";
+import { getGuildSettings } from "../db/guildSettings.js";
 
 /**
  * Canal de texto donde publicar el panel y los avisos.
@@ -16,8 +17,9 @@ export async function getMusicTextChannel(
 ): Promise<GuildTextBasedChannel | null> {
   if (requestedFrom) return requestedFrom;
 
-  if (config.musicChannelId) {
-    const channel = await guild.channels.fetch(config.musicChannelId).catch(() => null);
+  const configured = getGuildSettings(guild.id).musicChannelId ?? config.musicChannelId;
+  if (configured) {
+    const channel = await guild.channels.fetch(configured).catch(() => null);
     if (channel?.isTextBased() && !channel.isDMBased()) return channel;
   }
 

@@ -93,7 +93,25 @@ Repetir: No · Volumen: 50% · Se actualiza cada 12 s
 | `/unirme`, `/salir` | `Bemol ven` · `Bemol salte` |
 | `/ayuda` | `Bemol ayuda` o solo `Bemol` |
 
-Todo lo que funciona con `Bemol ...` funciona también mencionando al bot: `@Bemol pon ...`.
+Todo lo que funciona con `Bemol ...` funciona también mencionando al bot: `@Bemol pon ...`. Y con clic derecho en cualquier mensaje → **Apps → Añadir a Bemol** pone el enlace o el texto que contenga.
+
+### Configuración por servidor (`/config`)
+
+Cada servidor guarda su propia configuración en una base de datos SQLite (`data/bemol.db`, incluida en Node, sin nada que instalar). Solo puede cambiarla quien tenga el permiso *Gestionar servidor*.
+
+| Subcomando | Qué hace |
+| --- | --- |
+| `/config ver` | Muestra la configuración actual |
+| `/config dj @rol` | Rol DJ: solo ese rol (y los administradores) puede parar, limpiar, quitar, cambiar el volumen, saltar sin votar y desconectar. Sin rol, cualquiera en el canal puede. Quien esté solo con el bot siempre puede |
+| `/config voteskip` | Con varios oyentes, `/skip` abre una votación (por defecto 50 % a partir de 3 oyentes) |
+| `/config 247` | Quedarse en el canal aunque no suene nada ni haya nadie |
+| `/config autodc` | Minutos sin música o sin gente antes de salir (0 = nunca) |
+| `/config volumen` | Volumen inicial del servidor |
+| `/config canal` | Canal de texto para el panel cuando no hay otro |
+
+### Reanudación tras reinicios
+
+Mientras suena música, Bemol guarda la cola cada pocos segundos. Si el bot se reinicia (por una actualización, por ejemplo), vuelve a entrar al canal, reanuda la canción que sonaba desde el principio y conserva la cola, siempre que quede alguien escuchando.
 
 ## Intents y permisos
 

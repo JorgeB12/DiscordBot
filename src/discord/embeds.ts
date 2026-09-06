@@ -304,6 +304,14 @@ export function helpEmbed(wakeWord: string): EmbedBuilder {
         name: "🔊  Canal de voz",
         value: `\`/unirme\` · \`/salir\` · \`${w} ven\` · \`${w} salte\``,
       },
+      {
+        name: "⚙️  Servidor",
+        value: [
+          "`/config` — rol DJ, volumen inicial, 24/7, auto-desconexión, votación para saltar, canal de música",
+          "Clic derecho en un mensaje → **Apps → Añadir a Bemol** para poner lo que contenga",
+          "Con varios oyentes, `/skip` abre una votación; el rol DJ salta al instante",
+        ].join("\n"),
+      },
     );
 
   const legal = [

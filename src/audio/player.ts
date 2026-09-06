@@ -13,8 +13,17 @@ import {
   type Message,
   type VoiceBasedChannel,
 } from "discord.js";
+import type { GuildMember } from "discord.js";
 import { config } from "../config.js";
+import {
+  effectiveEmptyLeaveMs,
+  effectiveIdleLeaveMs,
+  effectiveVolume,
+  getGuildSettings,
+} from "../db/guildSettings.js";
+import { deleteSession, saveSession, type SessionSnapshot } from "../db/sessions.js";
 import { getMusicTextChannel } from "../discord/channels.js";
+import { isDj, listeners } from "../discord/permissions.js";
 import { farewellEmbed, panelMovedEmbed, playerPanel } from "../discord/embeds.js";
 import { musicEmoji, setVoiceStatus, statusText } from "../discord/voiceStatus.js";
 import {
@@ -60,8 +69,10 @@ export class GuildPlayer {
   /** Mientras está armado no publicamos panel: quien llamó a playQuery va a adoptar su respuesta como panel. */
   private adoptionPending: ReturnType<typeof setTimeout> | null = null;
   private textChannel: GuildTextBasedChannel | null;
-  private volume = config.defaultVolume / 100;
+  private volume: number;
   private loopMode: LoopMode = "off";
+  /** Votos para saltar la canción actual (ids de usuario). Se vacía al cambiar de canción. */
+  private skipVotes = new Set<string>();
 
   current: Song | null = null;
   readonly queue: Song[] = [];
@@ -72,6 +83,7 @@ export class GuildPlayer {
     this.guildId = this.guild.id;
     this.textChannel = options.textChannel;
     this.onDestroyed = options.onDestroyed;
+    this.volume = effectiveVolume(getGuildSettings(this.guildId)) / 100;
     this.player = createAudioPlayer();
     this.connection = joinVoiceChannel({
       channelId: options.channel.id,
@@ -165,6 +177,7 @@ export class GuildPlayer {
   }
 
   private reportHealth(): void {
+    this.saveSession();
     if (this.player.state.status === AudioPlayerStatus.Idle || !this.current) return;
     const sentMs = this.player.state.resource.playbackDuration;
     const wallMs = Date.now() - this.trackStartedAt;
@@ -180,6 +193,16 @@ export class GuildPlayer {
 
   get channelId(): string | null {
     return this.connection.joinConfig.channelId ?? null;
+  }
+
+  get voiceChannel(): VoiceBasedChannel | null {
+    const id = this.channelId;
+    const channel = id ? this.guild.channels.cache.get(id) : null;
+    return channel?.isVoiceBased() ? channel : null;
+  }
+
+  get textChannelId(): string | null {
+    return this.textChannel?.id ?? null;
   }
 
   get channelName(): string | null {
@@ -304,6 +327,41 @@ export class GuildPlayer {
     return { started: !alreadyActive, songs: accepted, playlistTitle };
   }
 
+  /**
+   * Pide saltar la canción. Si el servidor tiene votación activada y hay
+   * suficiente gente escuchando, quien no sea DJ solo suma un voto; se salta
+   * al alcanzar el porcentaje configurado.
+   */
+  async requestSkip(member: GuildMember): Promise<string> {
+    if (!this.current && this.queue.length === 0) return "No hay nada que saltar.";
+    const settings = getGuildSettings(this.guildId);
+    const people = listeners(this.voiceChannel);
+    const voteNeeded = settings.voteskip && people.length >= settings.voteskipMinListeners && !isDj(member, settings);
+    if (!voteNeeded) return this.skip();
+
+    if (this.skipVotes.has(member.id)) {
+      return `Ya votaste. Van ${this.voteCount(people)} de ${this.votesRequired(people.length, settings.voteskipPercent)} votos para saltar.`;
+    }
+    this.skipVotes.add(member.id);
+    const votes = this.voteCount(people);
+    const required = this.votesRequired(people.length, settings.voteskipPercent);
+    if (votes >= required) {
+      const result = await this.skip();
+      return `${result} (${votes}/${required} votos)`;
+    }
+    return `Voto para saltar registrado: **${votes}/${required}**. Faltan ${required - votes}.`;
+  }
+
+  private voteCount(people: GuildMember[]): number {
+    const present = new Set(people.map((person) => person.id));
+    for (const id of this.skipVotes) if (!present.has(id)) this.skipVotes.delete(id);
+    return this.skipVotes.size;
+  }
+
+  private votesRequired(listenerCount: number, percent: number): number {
+    return Math.max(1, Math.ceil((listenerCount * percent) / 100));
+  }
+
   async skip(count = 1): Promise<string> {
     if (!this.current && this.queue.length === 0) return "No hay nada que saltar.";
     const skipped = this.current?.title;
@@ -411,10 +469,56 @@ export class GuildPlayer {
 
   onChannelEmpty(): void {
     if (this.emptyTimer) return;
+    const settings = getGuildSettings(this.guildId);
+    const delay = effectiveEmptyLeaveMs(settings);
+    if (settings.stay247 || delay <= 0) return;
     this.emptyTimer = setTimeout(() => {
       this.emptyTimer = null;
       void this.destroy("empty");
-    }, config.emptyLeaveMs);
+    }, delay);
+  }
+
+  /* ───────────── Sesión persistente: sobrevive a reinicios del bot ───────────── */
+
+  snapshot(): SessionSnapshot | null {
+    const voiceChannelId = this.channelId;
+    if (!voiceChannelId || this.destroyed) return null;
+    return {
+      guildId: this.guildId,
+      voiceChannelId,
+      textChannelId: this.textChannelId,
+      current: this.current,
+      queue: [...this.queue],
+      positionMs: this.playbackPositionMs,
+      volume: this.volumePercent,
+      loop: this.loopMode,
+      paused: this.paused,
+      savedAt: Date.now(),
+    };
+  }
+
+  saveSession(): void {
+    const snapshot = this.snapshot();
+    if (!snapshot) return;
+    if (!snapshot.current && snapshot.queue.length === 0) {
+      deleteSession(this.guildId);
+      return;
+    }
+    try {
+      saveSession(snapshot);
+    } catch (error) {
+      console.warn("[session] no pude guardar la sesión", error);
+    }
+  }
+
+  /** Reanuda una sesión guardada: la canción actual vuelve a empezar y la cola se conserva. */
+  async restore(snapshot: SessionSnapshot): Promise<void> {
+    this.volume = Math.min(1.5, Math.max(0, snapshot.volume / 100));
+    this.loopMode = snapshot.loop;
+    const songs = [...(snapshot.current ? [snapshot.current] : []), ...snapshot.queue];
+    if (!songs.length) return;
+    await this.enqueue(songs);
+    if (snapshot.paused) this.pause();
   }
 
   onChannelOccupied(): void {
@@ -432,6 +536,9 @@ export class GuildPlayer {
     this.onChannelOccupied();
     const farewell = farewellEmbed(this.channelName, reason);
     const leavingChannelId = this.channelId;
+    // Al reiniciar guardamos la sesión para reanudarla; en cualquier otra salida la olvidamos.
+    if (reason === "shutdown") this.saveSession();
+    else deleteSession(this.guildId);
     void setVoiceStatus(this.guild.client, leavingChannelId, "");
     this.stream?.destroy();
     this.stream = null;
@@ -495,6 +602,7 @@ export class GuildPlayer {
         this.stream?.destroy();
         this.stream = createTrackStream(song, this.volume);
         this.current = song;
+        this.skipVotes.clear();
         this.player.play(this.stream.resource);
         this.clearIdle();
         this.startPanelLoop();
@@ -518,10 +626,13 @@ export class GuildPlayer {
 
   private armIdle(): void {
     this.clearIdle();
+    const settings = getGuildSettings(this.guildId);
+    const delay = effectiveIdleLeaveMs(settings);
+    if (settings.stay247 || delay <= 0) return;
     this.idleTimer = setTimeout(() => {
       this.idleTimer = null;
       void this.destroy("idle");
-    }, config.idleLeaveMs);
+    }, delay);
   }
 
   private clearIdle(): void {

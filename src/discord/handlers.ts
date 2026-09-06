@@ -1,20 +1,28 @@
 import {
+  ApplicationCommandType,
+  ContextMenuCommandBuilder,
   REST,
   Routes,
   SlashCommandBuilder,
   type ButtonInteraction,
   type ChatInputCommandInteraction,
+  type Client,
   type EmbedBuilder,
   type GuildMember,
   type GuildTextBasedChannel,
   type Interaction,
   type Message,
+  type MessageContextMenuCommandInteraction,
   type MessageCreateOptions,
   type ModalSubmitInteraction,
   type StringSelectMenuInteraction,
   type VoiceBasedChannel,
   type VoiceState,
 } from "discord.js";
+import { getGuildSettings } from "../db/guildSettings.js";
+import { deleteSession, loadSessions } from "../db/sessions.js";
+import { configCommand, handleConfig } from "./configCommand.js";
+import { can, denialMessage, type Action } from "./permissions.js";
 import { GuildPlayer } from "../audio/player.js";
 import {
   allVoiceSessions,
@@ -117,6 +125,9 @@ export const slashCommands = [
   new SlashCommandBuilder().setName("unirme").setDescription("Bemol se une a tu canal de voz"),
   new SlashCommandBuilder().setName("salir").setDescription("Bemol se sale del canal de voz"),
   new SlashCommandBuilder().setName("ayuda").setDescription("Cómo usar a Bemol"),
+  configCommand,
+  // Clic derecho en un mensaje → Apps → "Añadir a Bemol"
+  new ContextMenuCommandBuilder().setName("Añadir a Bemol").setType(ApplicationCommandType.Message),
 ].map((command) => command.toJSON());
 
 export async function registerSlashCommands(): Promise<void> {
@@ -136,6 +147,10 @@ export async function registerSlashCommands(): Promise<void> {
 export async function handleInteraction(interaction: Interaction): Promise<void> {
   if (interaction.isChatInputCommand()) {
     await handleSlash(interaction);
+    return;
+  }
+  if (interaction.isMessageContextMenuCommand()) {
+    await handleAddFromMessage(interaction);
     return;
   }
   if (interaction.isButton()) {
@@ -169,6 +184,15 @@ async function handleSlash(interaction: ChatInputCommandInteraction): Promise<vo
     return;
   }
 
+  if (name === "config") {
+    if (!can(member, "config")) {
+      await interaction.reply({ content: denialMessage("config", getGuildSettings(interaction.guild.id)), ephemeral: true });
+      return;
+    }
+    await handleConfig(interaction);
+    return;
+  }
+
   if (name === "unirme") {
     const channel = member.voice.channel;
     if (!channel) {
@@ -186,6 +210,10 @@ async function handleSlash(interaction: ChatInputCommandInteraction): Promise<vo
     const session = getVoiceSession(interaction.guild.id);
     if (!session) {
       await interaction.reply({ content: "No estoy en ningún canal de voz.", ephemeral: true });
+      return;
+    }
+    if (!can(member, "manage", session.voiceChannel)) {
+      await interaction.reply({ content: denialMessage("manage", getGuildSettings(interaction.guild.id)), ephemeral: true });
       return;
     }
     const channelName = session.channelName;
@@ -233,11 +261,11 @@ async function handleSlash(interaction: ChatInputCommandInteraction): Promise<vo
     return;
   }
 
-  const control = await runControl(member, textChannel, (player) => {
+  const control = await runControl(member, textChannel, actionFor(name), (player) => {
     switch (name) {
       case "skip":
       case "next":
-        return player.skip();
+        return player.requestSkip(member);
       case "stop":
         return player.stop();
       case "pausa":
@@ -332,6 +360,11 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
     return;
   }
 
+  if (interaction.customId === CONTROL_IDS.stop && !can(member, "manage", session.voiceChannel)) {
+    await interaction.reply({ content: denialMessage("manage", getGuildSettings(interaction.guild.id)), ephemeral: true });
+    return;
+  }
+
   // Confirmamos la pulsación antes de actuar: al saltar de canción el panel
   // puede reubicarse (borrarse y volver a publicarse) y el mensaje original
   // dejar de existir.
@@ -345,7 +378,7 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
       case CONTROL_IDS.pause:
         return session.paused ? session.resume() : session.pause();
       case CONTROL_IDS.skip:
-        return session.skip();
+        return session.requestSkip(member);
       case CONTROL_IDS.stop:
         return session.stop();
       case CONTROL_IDS.loop:
@@ -357,8 +390,8 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
     }
   })();
 
-  if (isNoop(message)) {
-    await interaction.followUp({ content: message, ephemeral: true });
+  if (isNoop(message) || /^(Voto|Ya votaste)/.test(message)) {
+    await interaction.followUp({ content: message, ephemeral: /^(No |Ya )/.test(message) });
   }
 
   // Refrescamos al instante el mensaje pulsado. Si es un panel antiguo que
@@ -412,6 +445,10 @@ async function handleRemoveSelect(interaction: StringSelectMenuInteraction): Pro
   }
   if (!inBotChannel(interaction.member, session)) {
     await interaction.reply({ content: "Métete al canal de voz donde estoy para quitar canciones.", ephemeral: true });
+    return;
+  }
+  if (!can(interaction.member, "manage", session.voiceChannel)) {
+    await interaction.reply({ content: denialMessage("manage", getGuildSettings(interaction.guild.id)), ephemeral: true });
     return;
   }
 
@@ -545,6 +582,7 @@ async function dispatchIntent(
     case "leave": {
       const session = getVoiceSession(member.guild.id);
       if (!session) return "No estoy en ningún canal de voz.";
+      if (!can(member, "manage", session.voiceChannel)) return denialMessage("manage", getGuildSettings(member.guild.id));
       const channelName = session.channelName;
       await session.destroy("manual");
       return { embeds: [okEmbed(channelName ? `Me salí de **${channelName}**.` : "Me salgo.")] };
@@ -574,10 +612,11 @@ async function dispatchIntent(
         ],
       };
     default: {
-      const control = await runControl(member, textChannel, (player) => {
+      const manage = ["stop", "volume", "remove", "clear"].includes(intent.type) || (intent.type === "skip" && intent.count > 1);
+      const control = await runControl(member, textChannel, manage ? "manage" : "control", (player) => {
         switch (intent.type) {
           case "skip":
-            return player.skip(intent.count);
+            return intent.count > 1 ? player.skip(intent.count) : player.requestSkip(member);
           case "previous":
             return player.previous();
           case "stop":
@@ -604,7 +643,7 @@ async function dispatchIntent(
       });
       if ("error" in control) return control.error;
       if (typeof control.message !== "string") return { embeds: [control.message] };
-      if (isNoop(control.message) || /^El volumen/.test(control.message)) {
+      if (isNoop(control.message) || /^(El volumen|Voto|Ya votaste)/.test(control.message)) {
         return { embeds: [infoEmbed(control.message)] };
       }
       return { embeds: [okEmbed(control.message)] };
@@ -686,9 +725,15 @@ async function playFor(
   }
 }
 
+/** Qué nivel de permiso exige cada slash command de control. */
+function actionFor(command: string): Action {
+  return ["stop", "volumen", "quitar", "limpiar"].includes(command) ? "manage" : "control";
+}
+
 async function runControl(
   member: GuildMember,
   textChannel: GuildTextBasedChannel | null,
+  required: Action,
   action: (player: GuildPlayer) => string | EmbedBuilder | Promise<string>,
 ): Promise<{ message: string | EmbedBuilder } | { error: string }> {
   const session = getVoiceSession(member.guild.id);
@@ -696,8 +741,60 @@ async function runControl(
   if (!inBotChannel(member, session)) {
     return { error: `Estoy en **${session.channelName ?? "otro canal"}**. Métete ahí para controlar la música.` };
   }
+  if (!can(member, required, session.voiceChannel)) {
+    return { error: denialMessage(required, getGuildSettings(member.guild.id)) };
+  }
   session.setTextChannel(textChannel);
   return { message: await action(session) };
+}
+
+/* ─────────────────── Menú contextual: clic derecho → Apps → Añadir a Bemol ─────────────────── */
+
+async function handleAddFromMessage(interaction: MessageContextMenuCommandInteraction): Promise<void> {
+  if (!interaction.guild || !isGuildMember(interaction.member)) {
+    await interaction.reply({ content: "Solo funciona dentro de un servidor.", ephemeral: true });
+    return;
+  }
+  const content = interaction.targetMessage.content?.trim() ?? "";
+  const url = content.match(/https?:\/\/\S+/)?.[0] ?? extractYoutubeUrl(content);
+  const query = url ?? content.replace(/<@!?\d+>/g, "").trim();
+  if (!query) {
+    await interaction.reply({ content: "Ese mensaje no tiene texto ni enlace que pueda poner.", ephemeral: true });
+    return;
+  }
+  await interaction.deferReply();
+  const reply = await playFor(interaction.member, query, textChannelFrom(interaction));
+  await deliver(reply, (payload) => interaction.editReply(payload));
+}
+
+/* ──────────────── Sesiones guardadas: reanudar la música tras un reinicio ──────────────── */
+
+export async function restoreSessions(client: Client<true>): Promise<void> {
+  const snapshots = loadSessions();
+  for (const snapshot of snapshots) {
+    deleteSession(snapshot.guildId);
+    try {
+      const guild = await client.guilds.fetch(snapshot.guildId);
+      const voice = await guild.channels.fetch(snapshot.voiceChannelId).catch(() => null);
+      if (!voice?.isVoiceBased()) continue;
+      // Sin nadie escuchando no tiene sentido volver a entrar.
+      if (voice.members.filter((member) => !member.user.bot).size === 0) continue;
+      const text = snapshot.textChannelId ? await guild.channels.fetch(snapshot.textChannelId).catch(() => null) : null;
+      const textChannel = text?.isTextBased() && !text.isDMBased() ? text : null;
+
+      const player = await joinChannel(voice, textChannel);
+      await player.restore(snapshot);
+      const title = snapshot.current?.title;
+      console.log(`[session] reanudada en ${guild.name}: ${title ?? "cola"} (+${snapshot.queue.length})`);
+      if (textChannel && title) {
+        await textChannel
+          .send({ embeds: [infoEmbed(`🔁 Vuelvo tras un reinicio. Sigo con **${title}** y ${snapshot.queue.length} en cola.`)] })
+          .catch(() => undefined);
+      }
+    } catch (error) {
+      console.warn(`[session] no pude reanudar ${snapshot.guildId}:`, error instanceof Error ? error.message : error);
+    }
+  }
 }
 
 function inBotChannel(member: GuildMember, session: GuildPlayer): boolean {
@@ -752,7 +849,8 @@ function commandText(message: Message): string | null {
   const url = extractYoutubeUrl(message.content);
   if (url && message.content.replace(url, "").trim() === "") return url;
 
-  if (config.musicChannelId && message.channel.id === config.musicChannelId) {
+  const musicChannelId = getGuildSettings(message.guildId!).musicChannelId ?? config.musicChannelId;
+  if (musicChannelId && message.channel.id === musicChannelId) {
     const intent = parseIntent(message.content);
     if (intent.type !== "unknown") return message.content;
   }
@@ -773,7 +871,12 @@ function isGuildMember(member: unknown): member is GuildMember {
 }
 
 function textChannelFrom(
-  interaction: ChatInputCommandInteraction | ButtonInteraction | StringSelectMenuInteraction | ModalSubmitInteraction,
+  interaction:
+    | ChatInputCommandInteraction
+    | ButtonInteraction
+    | StringSelectMenuInteraction
+    | ModalSubmitInteraction
+    | MessageContextMenuCommandInteraction,
 ): GuildTextBasedChannel | null {
   return interaction.channel && interaction.channel.isTextBased() && !interaction.channel.isDMBased()
     ? interaction.channel

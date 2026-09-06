@@ -31,7 +31,7 @@ try {
   Write-Host "Compilando..."
   npm run build
   if ($LASTEXITCODE -ne 0) { throw "La compilacion fallo; no subo nada." }
-  tar -czf $archive --exclude=node_modules --exclude=.git --exclude=*.log .
+  tar -czf $archive --exclude=node_modules --exclude=.git --exclude=data --exclude=*.log .
 } finally {
   Pop-Location
 }

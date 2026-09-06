@@ -6,3 +6,4 @@ dist/
 .bemol.lock
 *.tar.gz
 cookies.txt
+data/

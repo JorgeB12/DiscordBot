@@ -5,11 +5,13 @@ import { generateDependencyReport } from "@discordjs/voice";
 import { Client, Events, GatewayIntentBits, Partials } from "discord.js";
 import { ensureFfmpegOnPath } from "./audio/ffmpeg.js";
 import { config } from "./config.js";
+import { closeDb } from "./db/database.js";
 import {
   handleInteraction,
   handleMessage,
   handleVoiceState,
   registerSlashCommands,
+  restoreSessions,
   shutdownSessions,
 } from "./discord/handlers.js";
 
@@ -35,6 +37,7 @@ async function main(): Promise<void> {
   client.once(Events.ClientReady, async (ready) => {
     console.log(`Bemol listo como ${ready.user.tag}`);
     await registerSlashCommands();
+    await restoreSessions(ready).catch((error) => console.error("[session] restore failed", error));
   });
 
   client.on(Events.InteractionCreate, async (interaction) => {
@@ -62,6 +65,7 @@ async function main(): Promise<void> {
 
   const shutdown = async () => {
     await shutdownSessions();
+    closeDb();
     client.destroy();
     releaseInstance();
     process.exit(0);
