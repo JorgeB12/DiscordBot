@@ -10,7 +10,9 @@ Bemol se une a tu canal de voz y reproduce canciones y playlists de YouTube. Est
 - **Tres formas de usarlo**: slash commands, mención (`@Bemol pon ...`) o palabra de activación en el chat (`Bemol pon ...`).
 - Cola con paginación y menú para quitar canciones, playlists de YouTube, repetición de canción o cola, mezclar, volumen.
 - Se sale solo cuando el canal se queda vacío o no suena nada durante un rato, y avisa del motivo.
-- No guarda datos: todo vive en memoria y se borra al salir del canal. Ver [PRIVACY.md](PRIVACY.md) y [TERMS.md](TERMS.md).
+- **Biblioteca personal**: playlists y favoritos ligados a tu cuenta, que funcionan en cualquier servidor, con tarjetas para compartir.
+- **Configuración por servidor**: DJs, votación para saltar, 24/7, auto-desconexión y volumen inicial.
+- **Reanuda la música tras un reinicio** y solo guarda lo que creas a propósito. Ver [PRIVACY.md](PRIVACY.md) y [TERMS.md](TERMS.md).
 
 ## Requisitos
 
@@ -95,6 +97,25 @@ Repetir: No · Volumen: 50% · Se actualiza cada 12 s
 
 Todo lo que funciona con `Bemol ...` funciona también mencionando al bot: `@Bemol pon ...`. Y con clic derecho en cualquier mensaje → **Apps → Añadir a Bemol** pone el enlace o el texto que contenga.
 
+### Biblioteca personal: playlists y favoritos
+
+Cada usuario tiene su biblioteca, ligada a su cuenta, no al servidor: funciona en cualquier servidor donde esté Bemol.
+
+| Comando | Qué hace |
+| --- | --- |
+| `/playlist crear Night Drive` | Crea una playlist (hasta 50 por usuario, 250 canciones cada una) |
+| `/playlist añadir Night Drive [canción]` | Añade la canción que suena, o la que indiques por nombre o enlace (también playlists de YouTube enteras) |
+| `/playlist ver`, `/playlist lista` | Muestra una playlist con paginación, o todas las tuyas |
+| `/playlist reproducir Night Drive [mezclar]` | La pone en la cola, opcionalmente en orden aleatorio |
+| `/playlist quitar`, `/playlist eliminar` | Quita una canción por posición, o borra la playlist |
+| `/playlist compartir Night Drive` | Publica una tarjeta pública con **▶ Reproducir**, **🔀 Mezclar** y **💾 Guardar en mis playlists** para cualquiera del servidor |
+| `/like`, botón **❤️ Me gusta** | Guarda o quita de favoritas la canción que suena |
+| `/favoritos ver`, `/favoritos reproducir [mezclar]`, `/favoritos quitar` | Tus favoritas (hasta 500) |
+
+Los nombres de playlist se autocompletan al escribir. Además, el botón **📋 A playlist** del panel, los botones **💾** de `/buscar` y **Guardar como playlist** en la vista de cola abren un menú para elegir favoritas, una playlist existente o crear una nueva.
+
+`/buscar` muestra cinco resultados con dos filas de botones: **▶ 1–5** para ponerlos y **💾 1–5** para guardarlos sin reproducir.
+
 ### Configuración por servidor (`/config`)
 
 Cada servidor guarda su propia configuración en una base de datos SQLite (`data/bemol.db`, incluida en Node, sin nada que instalar). Solo puede cambiarla quien tenga el permiso *Gestionar servidor*.
@@ -143,7 +164,7 @@ Logs en vivo en la VM: `journalctl -u bemol -f`.
 
 ## Verificación de Discord
 
-Discord exige verificar las apps que superan 100 servidores. El bot cumple la parte técnica: funciona sin intents privilegiados, responde a las interacciones en menos de 3 segundos, no guarda datos y tiene [política de privacidad](PRIVACY.md) y [términos](TERMS.md). Lo demás se hace en el Developer Portal: descripción, enlaces legales, permisos mínimos, verificación en dos pasos y verificación de identidad cuando el bot llega a 75 servidores.
+Discord exige verificar las apps que superan 100 servidores. El bot cumple la parte técnica: funciona sin intents privilegiados, responde a las interacciones en menos de 3 segundos, solo guarda lo que el usuario crea a propósito y tiene [política de privacidad](PRIVACY.md) y [términos](TERMS.md). Lo demás se hace en el Developer Portal: descripción, enlaces legales, permisos mínimos, verificación en dos pasos y verificación de identidad cuando el bot llega a 75 servidores.
 
 Ten en cuenta que reproducir audio de YouTube está fuera de sus condiciones de servicio. Para un bot personal no suele ser un problema, pero es un riesgo si crece mucho.
 

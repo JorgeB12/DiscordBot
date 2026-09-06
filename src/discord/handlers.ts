@@ -13,34 +13,42 @@ import {
   type Interaction,
   type Message,
   type MessageContextMenuCommandInteraction,
-  type MessageCreateOptions,
   type ModalSubmitInteraction,
   type StringSelectMenuInteraction,
-  type VoiceBasedChannel,
   type VoiceState,
 } from "discord.js";
 import { getGuildSettings } from "../db/guildSettings.js";
 import { deleteSession, loadSessions } from "../db/sessions.js";
 import { configCommand, handleConfig } from "./configCommand.js";
 import { can, denialMessage, type Action } from "./permissions.js";
-import { GuildPlayer } from "../audio/player.js";
-import {
-  allVoiceSessions,
-  deleteVoiceSession,
-  getVoiceSession,
-  setVoiceSession,
-} from "../audio/registry.js";
-import { extractYoutubeUrl, searchTracks, type Requester, type Song } from "../audio/musicPlayer.js";
+import type { GuildPlayer } from "../audio/player.js";
+import { allVoiceSessions, getVoiceSession } from "../audio/registry.js";
+import { extractYoutubeUrl, searchTracks, type Song } from "../audio/musicPlayer.js";
 import { config, matchesWakeWord, stripWakeWord } from "../config.js";
-import { CONTROL_IDS, QUEUE_PAGE_PREFIX, addSongModal, queueControls, searchMenu } from "./controls.js";
+import { CONTROL_IDS, QUEUE_PAGE_PREFIX, addSongModal, queueControls, searchControls } from "./controls.js";
+import {
+  LIBRARY_COMMAND_NAMES,
+  handleLibraryAutocomplete,
+  handleLibraryComponent,
+  handleLibrarySlash,
+  libraryCommands,
+  rememberSongs,
+} from "./library.js";
+import {
+  deliver,
+  isGuildMember,
+  joinChannel,
+  playFor,
+  requesterOf,
+  textChannelFrom,
+  type MusicReply,
+} from "./playback.js";
 import {
   errorEmbed,
   helpEmbed,
   infoEmbed,
   okEmbed,
   playerPanel,
-  playlistQueuedEmbed,
-  queuedEmbed,
   queueEmbed,
   queuePage,
   queuePageCount,
@@ -55,13 +63,11 @@ const SEARCH_TTL_MS = 60_000;
 
 type PendingSearch = {
   query: string;
-  songs: Song[];
   message: Message | null;
   timer: ReturnType<typeof setTimeout>;
 };
 
 const seenMessages = new Set<string>();
-const joinsInFlight = new Map<string, Promise<GuildPlayer>>();
 const pendingSearches = new Map<string, PendingSearch>();
 
 export const slashCommands = [
@@ -126,6 +132,7 @@ export const slashCommands = [
   new SlashCommandBuilder().setName("salir").setDescription("Bemol se sale del canal de voz"),
   new SlashCommandBuilder().setName("ayuda").setDescription("Cómo usar a Bemol"),
   configCommand,
+  ...libraryCommands,
   // Clic derecho en un mensaje → Apps → "Añadir a Bemol"
   new ContextMenuCommandBuilder().setName("Añadir a Bemol").setType(ApplicationCommandType.Message),
 ].map((command) => command.toJSON());
@@ -145,21 +152,28 @@ export async function registerSlashCommands(): Promise<void> {
 }
 
 export async function handleInteraction(interaction: Interaction): Promise<void> {
+  if (interaction.isAutocomplete()) {
+    if (LIBRARY_COMMAND_NAMES.has(interaction.commandName)) await handleLibraryAutocomplete(interaction);
+    return;
+  }
   if (interaction.isChatInputCommand()) {
-    await handleSlash(interaction);
+    if (LIBRARY_COMMAND_NAMES.has(interaction.commandName)) await handleLibrarySlash(interaction);
+    else await handleSlash(interaction);
     return;
   }
   if (interaction.isMessageContextMenuCommand()) {
     await handleAddFromMessage(interaction);
     return;
   }
+  if (interaction.isButton() || interaction.isStringSelectMenu() || interaction.isModalSubmit()) {
+    if (await handleLibraryComponent(interaction)) return;
+  }
   if (interaction.isButton()) {
     await handleButton(interaction);
     return;
   }
   if (interaction.isStringSelectMenu()) {
-    if (interaction.customId === CONTROL_IDS.search) await handleSearchSelect(interaction);
-    else if (interaction.customId === CONTROL_IDS.removeSelect) await handleRemoveSelect(interaction);
+    if (interaction.customId === CONTROL_IDS.removeSelect) await handleRemoveSelect(interaction);
     return;
   }
   if (interaction.isModalSubmit() && interaction.customId === CONTROL_IDS.addModal) {
@@ -418,24 +432,6 @@ async function handleAddModal(interaction: ModalSubmitInteraction): Promise<void
   await deliver(reply, (payload) => interaction.editReply(payload));
 }
 
-async function handleSearchSelect(interaction: StringSelectMenuInteraction): Promise<void> {
-  if (!interaction.guild || !isGuildMember(interaction.member)) return;
-  const pending = pendingSearches.get(interaction.guild.id);
-  const id = interaction.values[0];
-  const song = pending?.songs.find((item) => item.id === id);
-  if (!pending || !song) {
-    await interaction.reply({ content: "Esa búsqueda ya caducó. Vuelve a usar `/buscar`.", ephemeral: true });
-    return;
-  }
-
-  clearTimeout(pending.timer);
-  pendingSearches.delete(interaction.guild.id);
-  await interaction.update({ embeds: [searchResolvedEmbed(pending.query, song)], components: [] });
-
-  const result = await playFor(interaction.member, song.url, textChannelFrom(interaction));
-  await deliver(result, (payload) => interaction.followUp(payload));
-}
-
 async function handleRemoveSelect(interaction: StringSelectMenuInteraction): Promise<void> {
   if (!interaction.guild || !isGuildMember(interaction.member)) return;
   const session = getVoiceSession(interaction.guild.id);
@@ -537,23 +533,6 @@ export async function shutdownSessions(): Promise<void> {
 }
 
 /* ───────────────────────────────── Internos ───────────────────────────────── */
-
-type MusicReply = {
-  embeds: EmbedBuilder[];
-  components?: MessageCreateOptions["components"];
-  /** Se llama con el mensaje ya publicado (para adoptarlo como panel, caducar menús, etc.). */
-  onSent?: (message: Message) => void | Promise<void>;
-};
-
-/** Envía la respuesta y ejecuta el gancho `onSent` con el mensaje resultante. */
-async function deliver(
-  reply: MusicReply,
-  send: (payload: { embeds: EmbedBuilder[]; components: MessageCreateOptions["components"] }) => Promise<Message>,
-): Promise<Message> {
-  const sent = await send({ embeds: reply.embeds, components: reply.components ?? [] });
-  await reply.onSent?.(sent);
-  return sent;
-}
 
 function queueView(session: GuildPlayer, page: number) {
   const pages = queuePageCount(session);
@@ -658,6 +637,7 @@ async function searchFor(member: GuildMember, query: string): Promise<MusicReply
     return { embeds: [errorEmbed(`No encontré nada para **${query}**.`)] };
   }
 
+  rememberSongs(songs);
   const previous = pendingSearches.get(guildId);
   if (previous) {
     clearTimeout(previous.timer);
@@ -666,7 +646,6 @@ async function searchFor(member: GuildMember, query: string): Promise<MusicReply
 
   const pending: PendingSearch = {
     query,
-    songs,
     message: null,
     timer: setTimeout(() => {
       pendingSearches.delete(guildId);
@@ -678,51 +657,11 @@ async function searchFor(member: GuildMember, query: string): Promise<MusicReply
 
   return {
     embeds: [searchEmbed(songs, query)],
-    components: [searchMenu(songs)],
+    components: searchControls(songs),
     onSent: (sent) => {
       pending.message = sent;
     },
   };
-}
-
-async function playFor(
-  member: GuildMember,
-  query: string,
-  textChannel: GuildTextBasedChannel | null,
-): Promise<MusicReply> {
-  const channel = member.voice.channel;
-  if (!channel) {
-    return { embeds: [errorEmbed("Métete a un canal de voz y pongo la canción.")] };
-  }
-
-  let player: GuildPlayer | null = null;
-  try {
-    player = await joinChannel(channel, textChannel);
-    player.setTextChannel(textChannel);
-    const result = await player.playQuery(query, requesterOf(member), { adoptPanel: true });
-    const started = result.started;
-    const current = player;
-
-    if (result.songs.length > 1) {
-      return {
-        embeds: [playlistQueuedEmbed(result.playlistTitle, result.songs, started, player)],
-        // La playlist tiene su propio resumen; el panel se publica justo debajo.
-        onSent: started ? () => current.publishPanel() : undefined,
-      };
-    }
-
-    const song = result.songs[0]!;
-    if (started) {
-      // La propia respuesta se convierte en el panel: un solo mensaje, sin duplicados.
-      return { ...playerPanel(player), onSent: (sent) => current.adoptPanel(sent) };
-    }
-    return { embeds: [queuedEmbed(song, player.queue.length, player)] };
-  } catch (error) {
-    console.error("[music] failed", error);
-    void player?.publishPanel();
-    const message = error instanceof Error ? error.message : "No pude poner esa canción.";
-    return { embeds: [errorEmbed(message)] };
-  }
 }
 
 /** Qué nivel de permiso exige cada slash command de control. */
@@ -801,40 +740,6 @@ function inBotChannel(member: GuildMember, session: GuildPlayer): boolean {
   return Boolean(member.voice.channelId && member.voice.channelId === session.channelId);
 }
 
-async function joinChannel(
-  channel: VoiceBasedChannel,
-  textChannel: GuildTextBasedChannel | null,
-): Promise<GuildPlayer> {
-  const pending = joinsInFlight.get(channel.guild.id);
-  if (pending) return pending;
-
-  const work = (async () => {
-    const existing = getVoiceSession(channel.guild.id);
-    if (existing?.isConnectedTo(channel.id)) {
-      await existing.ready();
-      existing.setTextChannel(textChannel);
-      return existing;
-    }
-    if (existing) await existing.destroy("moved");
-
-    const session = new GuildPlayer({
-      channel,
-      textChannel,
-      onDestroyed: () => deleteVoiceSession(channel.guild.id),
-    });
-    await session.ready();
-    setVoiceSession(channel.guild.id, session);
-    return session;
-  })();
-
-  joinsInFlight.set(channel.guild.id, work);
-  try {
-    return await work;
-  } finally {
-    joinsInFlight.delete(channel.guild.id);
-  }
-}
-
 function commandText(message: Message): string | null {
   // "@Bemol pon ..." funciona siempre, incluso sin el intent Message Content:
   // Discord entrega el contenido de los mensajes que mencionan al bot.
@@ -856,29 +761,4 @@ function commandText(message: Message): string | null {
   }
 
   return null;
-}
-
-function requesterOf(member: GuildMember): Requester {
-  return {
-    id: member.id,
-    name: member.displayName,
-    avatarUrl: member.displayAvatarURL({ size: 64 }),
-  };
-}
-
-function isGuildMember(member: unknown): member is GuildMember {
-  return Boolean(member && typeof member === "object" && "voice" in member);
-}
-
-function textChannelFrom(
-  interaction:
-    | ChatInputCommandInteraction
-    | ButtonInteraction
-    | StringSelectMenuInteraction
-    | ModalSubmitInteraction
-    | MessageContextMenuCommandInteraction,
-): GuildTextBasedChannel | null {
-  return interaction.channel && interaction.channel.isTextBased() && !interaction.channel.isDMBased()
-    ? interaction.channel
-    : null;
 }

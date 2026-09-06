@@ -305,6 +305,14 @@ export function helpEmbed(wakeWord: string): EmbedBuilder {
         value: `\`/unirme\` · \`/salir\` · \`${w} ven\` · \`${w} salte\``,
       },
       {
+        name: "🎧  Tu biblioteca (en cualquier servidor)",
+        value: [
+          "`/playlist crear` · `añadir` · `ver` · `reproducir` · `quitar` · `eliminar` · `compartir` · `lista`",
+          "`/like` y el botón **❤️ Me gusta** del panel guardan en favoritas · `/favoritos ver` · `reproducir`",
+          "Botón **📋 A playlist** del panel, **💾** en `/buscar` y **Guardar como playlist** en la cola",
+        ].join("\n"),
+      },
+      {
         name: "⚙️  Servidor",
         value: [
           "`/config` — DJs, volumen inicial, 24/7, auto-desconexión, votación para saltar, canal de música",
@@ -320,7 +328,7 @@ export function helpEmbed(wakeWord: string): EmbedBuilder {
     config.supportUrl ? `[Soporte](${config.supportUrl})` : null,
   ].filter((link) => link !== null);
   if (legal.length) {
-    embed.addFields({ name: "ℹ️  Acerca de Bemol", value: `${legal.join(" · ")}\nNo guardo datos personales: la cola vive en memoria y se borra al salir del canal.` });
+    embed.addFields({ name: "ℹ️  Acerca de Bemol", value: `${legal.join(" · ")}\nSolo guardo lo que creas a propósito (playlists, favoritos y la configuración del servidor); puedes borrarlo cuando quieras.` });
   }
 
   return embed.setFooter({

@@ -1,6 +1,6 @@
 # Términos de uso de Bemol
 
-*Última actualización: 4 de septiembre de 2026*
+*Última actualización: 6 de septiembre de 2026*
 
 Al añadir Bemol a un servidor de Discord o usar sus comandos aceptas estos términos.
 
@@ -30,7 +30,7 @@ El responsable del bot no se hace responsable de daños derivados del uso o la i
 
 ## Privacidad
 
-El tratamiento de datos se describe en la [Política de privacidad](PRIVACY.md). En resumen: Bemol no guarda datos personales de forma permanente.
+El tratamiento de datos se describe en la [Política de privacidad](PRIVACY.md). En resumen: Bemol solo guarda lo que creas a propósito (playlists, favoritos y la configuración del servidor) y puedes borrarlo cuando quieras.
 
 ## Cambios
 

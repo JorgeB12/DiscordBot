@@ -285,6 +285,18 @@ export class GuildPlayer {
     }
   }
 
+  /** Como `playQuery`, pero con canciones ya resueltas (playlists guardadas, favoritos…). */
+  async playSongs(songs: Song[], options: { adoptPanel?: boolean } = {}): Promise<PlayResult> {
+    const willStart = !this.current && !this.playing;
+    if (options.adoptPanel && willStart) this.expectAdoption();
+    try {
+      return await this.enqueue(songs);
+    } catch (error) {
+      this.cancelAdoption();
+      throw error;
+    }
+  }
+
   /** Convierte el mensaje dado en el panel de reproducción y lo mantiene actualizado. */
   async adoptPanel(message: Message): Promise<void> {
     this.cancelAdoption();

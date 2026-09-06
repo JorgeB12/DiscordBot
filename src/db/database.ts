@@ -1,6 +1,7 @@
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { migrateLibrary } from "./library.js";
 
 /**
  * Base de datos SQLite del bot (módulo `node:sqlite`, incluido en Node 22.13+,
@@ -19,6 +20,7 @@ export function getDb(): DatabaseSync {
   db.exec("PRAGMA journal_mode = WAL");
   db.exec("PRAGMA busy_timeout = 3000");
   migrate(db);
+  migrateLibrary();
   return db;
 }
 

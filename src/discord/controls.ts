@@ -23,12 +23,27 @@ export const CONTROL_IDS = {
   add: "bemol:add",
   addModal: "bemol:addmodal",
   addQuery: "bemol:addquery",
-  search: "bemol:search",
   removeSelect: "bemol:remove",
   queueRefresh: "bemol:qrefresh",
 } as const;
 
 export const QUEUE_PAGE_PREFIX = "bemol:qpage:";
+
+/** Ids de los componentes de la biblioteca (playlists y favoritos). Los gestiona library.ts. */
+export const LIB_IDS = {
+  prefix: "lib:",
+  favToggle: "lib:fav:toggle",
+  savePanel: "lib:save:panel",
+  /** + id de canción */
+  saveSong: "lib:save:song:",
+  /** + id de canción */
+  searchPlay: "search:play:",
+  queueSave: "lib:queue:save",
+  queueSaveModal: "lib:queue:savemodal",
+  queueSaveName: "lib:queue:savename",
+  /** + id de canción */
+  saveSelect: "lib:save:select:",
+} as const;
 
 export const LOOP_LABEL: Record<LoopMode, string> = {
   off: "No",
@@ -90,7 +105,13 @@ export function playerControls(options: {
     addButton(),
   );
 
-  return [transport, extras];
+  // Biblioteca personal: favoritos y guardar en playlist (van ligados a quien pulsa).
+  const library = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId(LIB_IDS.favToggle).setEmoji("❤️").setLabel("Me gusta").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(LIB_IDS.savePanel).setEmoji("📋").setLabel("A playlist").setStyle(ButtonStyle.Secondary),
+  );
+
+  return [transport, extras, library];
 }
 
 /** Botones cuando la cola se ha acabado: solo lo que tiene sentido hacer. */
@@ -166,6 +187,11 @@ export function queueControls(
       .setEmoji("🔄")
       .setLabel("Actualizar")
       .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId(LIB_IDS.queueSave)
+      .setEmoji("💾")
+      .setLabel("Guardar como playlist")
+      .setStyle(ButtonStyle.Secondary),
   );
   rows.push(buttons);
 
@@ -187,18 +213,27 @@ export function queueControls(
   return rows;
 }
 
-export function searchMenu(songs: Song[]): ActionRowBuilder<StringSelectMenuBuilder> {
-  const menu = new StringSelectMenuBuilder()
-    .setCustomId(CONTROL_IDS.search)
-    .setPlaceholder("🎵  Elige la canción que quieres poner")
-    .addOptions(
-      songs.slice(0, 10).map((song, index) =>
-        new StringSelectMenuOptionBuilder()
-          .setLabel(`${index + 1}. ${song.title}`.slice(0, 100))
-          .setDescription(`${song.author} · ${formatDuration(song.durationMs)}`.slice(0, 100))
-          .setValue(song.id.slice(0, 100)),
-      ),
-    );
-
-  return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu);
+/**
+ * Resultados de búsqueda: una fila para poner cada resultado y otra para
+ * guardarlo (favoritos o playlist) sin reproducirlo.
+ */
+export function searchControls(songs: Song[]): ActionRowBuilder<ButtonBuilder>[] {
+  const shown = songs.slice(0, 5);
+  const play = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    shown.map((song, index) =>
+      new ButtonBuilder()
+        .setCustomId(`${LIB_IDS.searchPlay}${song.id.slice(0, 60)}`)
+        .setLabel(`▶ ${index + 1}`)
+        .setStyle(ButtonStyle.Primary),
+    ),
+  );
+  const save = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    shown.map((song, index) =>
+      new ButtonBuilder()
+        .setCustomId(`${LIB_IDS.saveSong}${song.id.slice(0, 60)}`)
+        .setLabel(`💾 ${index + 1}`)
+        .setStyle(ButtonStyle.Secondary),
+    ),
+  );
+  return [play, save];
 }
