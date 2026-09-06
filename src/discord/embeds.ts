@@ -5,7 +5,7 @@ import { config } from "../config.js";
 import { LOOP_LABEL, idleControls, playerControls } from "./controls.js";
 import { formatDuration, formatDurationWords, progressBar } from "../util/time.js";
 
-export const BEMOL_COLOR = 0xc724b1;
+export const BEMOL_COLOR = 0x8b5cf6; // violeta, a juego con el avatar
 export const PAUSED_COLOR = 0xf5a623;
 export const MUTED_COLOR = 0x6b7280;
 export const ERROR_COLOR = 0xe53e3e;

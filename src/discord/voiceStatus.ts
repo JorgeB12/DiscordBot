@@ -5,7 +5,7 @@ import type { Song } from "../audio/musicPlayer.js";
 
 /**
  * Estado del canal de voz (la línea bajo el nombre del canal, como hace
- * Rythm): "<nota naranja> Janice STFU - Drake".
+ * Rythm): "<nota violeta> Janice STFU - Drake".
  *
  * Discord lo expone como `PUT /channels/{id}/voice-status`. El bot necesita el
  * permiso "Establecer estado del canal de voz" (o Gestionar canales).
