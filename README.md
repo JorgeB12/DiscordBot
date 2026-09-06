@@ -102,7 +102,7 @@ Cada servidor guarda su propia configuración en una base de datos SQLite (`data
 | Subcomando | Qué hace |
 | --- | --- |
 | `/config ver` | Muestra la configuración actual |
-| `/config dj @rol` | Rol DJ: solo ese rol (y los administradores) puede parar, limpiar, quitar, cambiar el volumen, saltar sin votar y desconectar. Sin rol, cualquiera en el canal puede. Quien esté solo con el bot siempre puede |
+| `/config dj añadir @usuario` | DJs: solo ellos (y los administradores) pueden parar, limpiar, quitar, cambiar el volumen, saltar sin votar y desconectar. `quitar` y `ninguno` para editar la lista. Sin DJs, cualquiera en el canal puede. Quien esté solo con el bot siempre puede |
 | `/config voteskip` | Con varios oyentes, `/skip` abre una votación (por defecto 50 % a partir de 3 oyentes) |
 | `/config 247` | Quedarse en el canal aunque no suene nada ni haya nadie |
 | `/config autodc` | Minutos sin música o sin gente antes de salir (0 = nunca) |

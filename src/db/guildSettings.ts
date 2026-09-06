@@ -4,8 +4,6 @@ import { getDb } from "./database.js";
 /** Configuración de Bemol para un servidor. Los `null` significan "usa el valor por defecto". */
 export type GuildSettings = {
   guildId: string;
-  /** Rol que puede parar, limpiar, quitar, cambiar volumen, saltar sin votación y desconectar. `null` = todo el mundo. */
-  djRoleId: string | null;
   defaultVolume: number | null;
   /** Quedarse en el canal aunque no suene nada ni haya nadie. */
   stay247: boolean;
@@ -22,7 +20,6 @@ export type GuildSettings = {
 
 type Row = {
   guild_id: string;
-  dj_role_id: string | null;
   default_volume: number | null;
   stay_247: number;
   idle_leave_min: number | null;
@@ -38,7 +35,6 @@ const cache = new Map<string, GuildSettings>();
 export function defaultSettings(guildId: string): GuildSettings {
   return {
     guildId,
-    djRoleId: null,
     defaultVolume: null,
     stay247: false,
     idleLeaveMin: null,
@@ -58,7 +54,6 @@ export function getGuildSettings(guildId: string): GuildSettings {
   const settings: GuildSettings = row
     ? {
         guildId,
-        djRoleId: row.dj_role_id,
         defaultVolume: row.default_volume,
         stay247: row.stay_247 === 1,
         idleLeaveMin: row.idle_leave_min,
@@ -78,11 +73,10 @@ export function updateGuildSettings(guildId: string, patch: Partial<Omit<GuildSe
   getDb()
     .prepare(
       `INSERT INTO guild_settings (
-         guild_id, dj_role_id, default_volume, stay_247, idle_leave_min, empty_leave_min,
+         guild_id, default_volume, stay_247, idle_leave_min, empty_leave_min,
          voteskip, voteskip_percent, voteskip_min_listeners, music_channel_id, updated_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(guild_id) DO UPDATE SET
-         dj_role_id = excluded.dj_role_id,
          default_volume = excluded.default_volume,
          stay_247 = excluded.stay_247,
          idle_leave_min = excluded.idle_leave_min,
@@ -95,7 +89,6 @@ export function updateGuildSettings(guildId: string, patch: Partial<Omit<GuildSe
     )
     .run(
       guildId,
-      next.djRoleId,
       next.defaultVolume,
       next.stay247 ? 1 : 0,
       next.idleLeaveMin,
@@ -122,4 +115,38 @@ export function effectiveIdleLeaveMs(settings: GuildSettings): number {
 
 export function effectiveEmptyLeaveMs(settings: GuildSettings): number {
   return settings.emptyLeaveMin === null ? config.emptyLeaveMs : settings.emptyLeaveMin * 60_000;
+}
+
+/* ───────────── DJs: usuarios que pueden gestionar la música ───────────── */
+
+const djCache = new Map<string, string[]>();
+
+export function getDjs(guildId: string): string[] {
+  const cached = djCache.get(guildId);
+  if (cached) return cached;
+  const rows = getDb().prepare("SELECT user_id FROM guild_djs WHERE guild_id = ? ORDER BY added_at").all(guildId) as unknown as {
+    user_id: string;
+  }[];
+  const ids = rows.map((row) => row.user_id);
+  djCache.set(guildId, ids);
+  return ids;
+}
+
+export function addDj(guildId: string, userId: string): boolean {
+  if (getDjs(guildId).includes(userId)) return false;
+  getDb().prepare("INSERT OR IGNORE INTO guild_djs (guild_id, user_id, added_at) VALUES (?, ?, ?)").run(guildId, userId, Date.now());
+  djCache.delete(guildId);
+  return true;
+}
+
+export function removeDj(guildId: string, userId: string): boolean {
+  if (!getDjs(guildId).includes(userId)) return false;
+  getDb().prepare("DELETE FROM guild_djs WHERE guild_id = ? AND user_id = ?").run(guildId, userId);
+  djCache.delete(guildId);
+  return true;
+}
+
+export function clearDjs(guildId: string): void {
+  getDb().prepare("DELETE FROM guild_djs WHERE guild_id = ?").run(guildId);
+  djCache.delete(guildId);
 }

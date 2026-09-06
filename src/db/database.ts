@@ -38,6 +38,13 @@ function migrate(database: DatabaseSync): void {
       updated_at INTEGER NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS guild_djs (
+      guild_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      added_at INTEGER NOT NULL,
+      PRIMARY KEY (guild_id, user_id)
+    );
+
     CREATE TABLE IF NOT EXISTS sessions (
       guild_id TEXT PRIMARY KEY,
       voice_channel_id TEXT NOT NULL,

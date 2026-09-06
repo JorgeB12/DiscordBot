@@ -7,7 +7,7 @@ import {
   type ChatInputCommandInteraction,
 } from "discord.js";
 import { config } from "../config.js";
-import { getGuildSettings, updateGuildSettings, type GuildSettings } from "../db/guildSettings.js";
+import { addDj, clearDjs, getDjs, getGuildSettings, removeDj, updateGuildSettings, type GuildSettings } from "../db/guildSettings.js";
 import { BEMOL_COLOR } from "./embeds.js";
 
 /**
@@ -21,11 +21,23 @@ export const configCommand = new SlashCommandBuilder()
   .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
   .setContexts(InteractionContextType.Guild)
   .addSubcommand((sub) => sub.setName("ver").setDescription("Muestra la configuración actual"))
-  .addSubcommand((sub) =>
-    sub
+  .addSubcommandGroup((group) =>
+    group
       .setName("dj")
-      .setDescription("Rol DJ: quién puede parar, limpiar, quitar, cambiar volumen y saltar sin votar")
-      .addRoleOption((option) => option.setName("rol").setDescription("Sin rol = todo el mundo puede")),
+      .setDescription("DJs: quiénes pueden parar, limpiar, quitar, cambiar volumen y saltar sin votar")
+      .addSubcommand((sub) =>
+        sub
+          .setName("añadir")
+          .setDescription("Nombra DJ a un usuario")
+          .addUserOption((option) => option.setName("usuario").setDescription("Quién").setRequired(true)),
+      )
+      .addSubcommand((sub) =>
+        sub
+          .setName("quitar")
+          .setDescription("Quita a un usuario de la lista de DJs")
+          .addUserOption((option) => option.setName("usuario").setDescription("Quién").setRequired(true)),
+      )
+      .addSubcommand((sub) => sub.setName("ninguno").setDescription("Sin DJs: cualquiera en el canal puede gestionar la música")),
   )
   .addSubcommand((sub) =>
     sub
@@ -77,20 +89,33 @@ export const configCommand = new SlashCommandBuilder()
 export async function handleConfig(interaction: ChatInputCommandInteraction): Promise<void> {
   const guild = interaction.guild!;
   const sub = interaction.options.getSubcommand();
+  const group = interaction.options.getSubcommandGroup(false);
 
   if (sub === "ver") {
-    await interaction.reply({ embeds: [configEmbed(getGuildSettings(guild.id))], ephemeral: true });
+    await interaction.reply({ embeds: [configEmbed(guild.id)], ephemeral: true });
     return;
   }
 
   let note = "";
-  switch (sub) {
-    case "dj": {
-      const role = interaction.options.getRole("rol");
-      updateGuildSettings(guild.id, { djRoleId: role?.id ?? null });
-      note = role ? `Rol DJ: <@&${role.id}>.` : "Sin rol DJ: cualquiera en el canal puede gestionar la música.";
-      break;
+  if (group === "dj") {
+    const user = interaction.options.getUser("usuario");
+    if (sub === "añadir" && user) {
+      if (user.bot) {
+        await interaction.reply({ content: "Un bot no puede ser DJ.", ephemeral: true });
+        return;
+      }
+      note = addDj(guild.id, user.id) ? `<@${user.id}> ahora es DJ.` : `<@${user.id}> ya era DJ.`;
+    } else if (sub === "quitar" && user) {
+      note = removeDj(guild.id, user.id) ? `<@${user.id}> ya no es DJ.` : `<@${user.id}> no estaba en la lista de DJs.`;
+    } else {
+      clearDjs(guild.id);
+      note = "Sin DJs: cualquiera en el canal puede gestionar la música.";
     }
+    await interaction.reply({ content: `✅ ${note}`, embeds: [configEmbed(guild.id)], ephemeral: true });
+    return;
+  }
+
+  switch (sub) {
     case "volumen": {
       const level = interaction.options.getInteger("nivel", true);
       updateGuildSettings(guild.id, { defaultVolume: level });
@@ -136,8 +161,8 @@ export async function handleConfig(interaction: ChatInputCommandInteraction): Pr
       break;
     }
     case "reiniciar": {
+      clearDjs(guild.id);
       updateGuildSettings(guild.id, {
-        djRoleId: null,
         defaultVolume: null,
         stay247: false,
         idleLeaveMin: null,
@@ -155,10 +180,12 @@ export async function handleConfig(interaction: ChatInputCommandInteraction): Pr
       return;
   }
 
-  await interaction.reply({ content: `✅ ${note}`, embeds: [configEmbed(getGuildSettings(guild.id))], ephemeral: true });
+  await interaction.reply({ content: `✅ ${note}`, embeds: [configEmbed(guild.id)], ephemeral: true });
 }
 
-export function configEmbed(settings: GuildSettings): EmbedBuilder {
+export function configEmbed(guildId: string): EmbedBuilder {
+  const settings: GuildSettings = getGuildSettings(guildId);
+  const djs = getDjs(guildId);
   const minutes = (value: number | null, fallbackMs: number) => {
     const effective = value === null ? Math.round(fallbackMs / 60_000) : value;
     return effective <= 0 ? "nunca" : `${effective} min${value === null ? " (por defecto)" : ""}`;
@@ -167,7 +194,7 @@ export function configEmbed(settings: GuildSettings): EmbedBuilder {
     .setColor(BEMOL_COLOR)
     .setAuthor({ name: "⚙️  Configuración de Bemol" })
     .addFields(
-      { name: "👑 Rol DJ", value: settings.djRoleId ? `<@&${settings.djRoleId}>` : "Ninguno: todos pueden gestionar", inline: true },
+      { name: "👑 DJs", value: djs.length ? djs.map((id) => `<@${id}>`).join(", ") : "Ninguno: todos pueden gestionar", inline: true },
       { name: "🔊 Volumen inicial", value: `${settings.defaultVolume ?? config.defaultVolume}%${settings.defaultVolume === null ? " (por defecto)" : ""}`, inline: true },
       { name: "💤 24/7", value: settings.stay247 ? "Activado" : "Desactivado", inline: true },
       { name: "⏱️ Salir sin música", value: settings.stay247 ? "—" : minutes(settings.idleLeaveMin, config.idleLeaveMs), inline: true },
@@ -179,5 +206,5 @@ export function configEmbed(settings: GuildSettings): EmbedBuilder {
       },
       { name: "💬 Canal de música", value: settings.musicChannelId ? `<#${settings.musicChannelId}>` : "El chat desde el que se pide", inline: true },
     )
-    .setFooter({ text: "Cambia valores con /config dj · volumen · 247 · autodc · voteskip · canal · reiniciar" });
+    .setFooter({ text: "Cambia valores con /config dj añadir/quitar · volumen · 247 · autodc · voteskip · canal · reiniciar" });
 }

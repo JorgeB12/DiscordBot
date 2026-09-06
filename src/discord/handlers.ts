@@ -186,7 +186,7 @@ async function handleSlash(interaction: ChatInputCommandInteraction): Promise<vo
 
   if (name === "config") {
     if (!can(member, "config")) {
-      await interaction.reply({ content: denialMessage("config", getGuildSettings(interaction.guild.id)), ephemeral: true });
+      await interaction.reply({ content: denialMessage("config", interaction.guild.id), ephemeral: true });
       return;
     }
     await handleConfig(interaction);
@@ -213,7 +213,7 @@ async function handleSlash(interaction: ChatInputCommandInteraction): Promise<vo
       return;
     }
     if (!can(member, "manage", session.voiceChannel)) {
-      await interaction.reply({ content: denialMessage("manage", getGuildSettings(interaction.guild.id)), ephemeral: true });
+      await interaction.reply({ content: denialMessage("manage", interaction.guild.id), ephemeral: true });
       return;
     }
     const channelName = session.channelName;
@@ -361,7 +361,7 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
   }
 
   if (interaction.customId === CONTROL_IDS.stop && !can(member, "manage", session.voiceChannel)) {
-    await interaction.reply({ content: denialMessage("manage", getGuildSettings(interaction.guild.id)), ephemeral: true });
+    await interaction.reply({ content: denialMessage("manage", interaction.guild.id), ephemeral: true });
     return;
   }
 
@@ -448,7 +448,7 @@ async function handleRemoveSelect(interaction: StringSelectMenuInteraction): Pro
     return;
   }
   if (!can(interaction.member, "manage", session.voiceChannel)) {
-    await interaction.reply({ content: denialMessage("manage", getGuildSettings(interaction.guild.id)), ephemeral: true });
+    await interaction.reply({ content: denialMessage("manage", interaction.guild.id), ephemeral: true });
     return;
   }
 
@@ -582,7 +582,7 @@ async function dispatchIntent(
     case "leave": {
       const session = getVoiceSession(member.guild.id);
       if (!session) return "No estoy en ningún canal de voz.";
-      if (!can(member, "manage", session.voiceChannel)) return denialMessage("manage", getGuildSettings(member.guild.id));
+      if (!can(member, "manage", session.voiceChannel)) return denialMessage("manage", member.guild.id);
       const channelName = session.channelName;
       await session.destroy("manual");
       return { embeds: [okEmbed(channelName ? `Me salí de **${channelName}**.` : "Me salgo.")] };
@@ -742,7 +742,7 @@ async function runControl(
     return { error: `Estoy en **${session.channelName ?? "otro canal"}**. Métete ahí para controlar la música.` };
   }
   if (!can(member, required, session.voiceChannel)) {
-    return { error: denialMessage(required, getGuildSettings(member.guild.id)) };
+    return { error: denialMessage(required, member.guild.id) };
   }
   session.setTextChannel(textChannel);
   return { message: await action(session) };

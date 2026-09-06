@@ -307,9 +307,9 @@ export function helpEmbed(wakeWord: string): EmbedBuilder {
       {
         name: "⚙️  Servidor",
         value: [
-          "`/config` — rol DJ, volumen inicial, 24/7, auto-desconexión, votación para saltar, canal de música",
+          "`/config` — DJs, volumen inicial, 24/7, auto-desconexión, votación para saltar, canal de música",
           "Clic derecho en un mensaje → **Apps → Añadir a Bemol** para poner lo que contenga",
-          "Con varios oyentes, `/skip` abre una votación; el rol DJ salta al instante",
+          "Con varios oyentes, `/skip` abre una votación; los DJ saltan al instante",
         ].join("\n"),
       },
     );

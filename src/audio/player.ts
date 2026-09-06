@@ -336,7 +336,7 @@ export class GuildPlayer {
     if (!this.current && this.queue.length === 0) return "No hay nada que saltar.";
     const settings = getGuildSettings(this.guildId);
     const people = listeners(this.voiceChannel);
-    const voteNeeded = settings.voteskip && people.length >= settings.voteskipMinListeners && !isDj(member, settings);
+    const voteNeeded = settings.voteskip && people.length >= settings.voteskipMinListeners && !isDj(member);
     if (!voteNeeded) return this.skip();
 
     if (this.skipVotes.has(member.id)) {
