@@ -13,7 +13,7 @@ import {
   shutdownSessions,
 } from "./discord/handlers.js";
 
-const LOCK_FILE = path.join(process.cwd(), ".juan.lock");
+const LOCK_FILE = path.join(process.cwd(), ".bemol.lock");
 
 async function main(): Promise<void> {
   ensureFfmpegOnPath();
@@ -33,7 +33,7 @@ async function main(): Promise<void> {
   });
 
   client.once(Events.ClientReady, async (ready) => {
-    console.log(`Juan listo como ${ready.user.tag}`);
+    console.log(`Bemol listo como ${ready.user.tag}`);
     await registerSlashCommands();
   });
 
@@ -94,7 +94,7 @@ function claimInstance(): void {
     if (previous && previous !== process.pid) {
       try {
         process.kill(previous);
-        console.log(`[juan] cerré la instancia anterior (pid ${previous})`);
+        console.log(`[bemol] cerré la instancia anterior (pid ${previous})`);
       } catch {
         // already gone
       }

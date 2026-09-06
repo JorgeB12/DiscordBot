@@ -1,9 +1,9 @@
 {
-  "name": "juan-discord-bot",
+  "name": "bemol-discord-bot",
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Juan — bot de música para Discord",
+  "description": "Bemol — bot de música para Discord",
   "engines": {
     "node": ">=18.17.0"
   },

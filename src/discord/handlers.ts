@@ -114,9 +114,9 @@ export const slashCommands = [
       option.setName("posicion").setDescription("Número en la cola").setRequired(true).setMinValue(1),
     ),
   new SlashCommandBuilder().setName("limpiar").setDescription("Vacía la cola y deja la canción actual"),
-  new SlashCommandBuilder().setName("unirme").setDescription("Juan se une a tu canal de voz"),
-  new SlashCommandBuilder().setName("salir").setDescription("Juan se sale del canal de voz"),
-  new SlashCommandBuilder().setName("ayuda").setDescription("Cómo usar a Juan"),
+  new SlashCommandBuilder().setName("unirme").setDescription("Bemol se une a tu canal de voz"),
+  new SlashCommandBuilder().setName("salir").setDescription("Bemol se sale del canal de voz"),
+  new SlashCommandBuilder().setName("ayuda").setDescription("Cómo usar a Bemol"),
 ].map((command) => command.toJSON());
 
 export async function registerSlashCommands(): Promise<void> {
@@ -435,7 +435,7 @@ async function handleRemoveSelect(interaction: StringSelectMenuInteraction): Pro
   await interaction.followUp({ embeds: [okEmbed(message)], ephemeral: true });
 }
 
-/* ──────────────────────────── Mensajes de texto (Juan ...) ──────────────────────────── */
+/* ──────────────────────────── Mensajes de texto (Bemol ...) ──────────────────────────── */
 
 export async function handleMessage(message: Message): Promise<void> {
   if (message.author.bot || !message.inGuild() || !message.member) return;
@@ -739,7 +739,7 @@ async function joinChannel(
 }
 
 function commandText(message: Message): string | null {
-  // "@Juan pon ..." funciona siempre, incluso sin el intent Message Content:
+  // "@Bemol pon ..." funciona siempre, incluso sin el intent Message Content:
   // Discord entrega el contenido de los mensajes que mencionan al bot.
   const botId = message.client.user?.id;
   if (botId) {

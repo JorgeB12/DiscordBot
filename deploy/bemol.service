@@ -1,5 +1,5 @@
 [Unit]
-Description=Juan Discord music bot
+Description=Bemol Discord music bot
 After=network-online.target
 Wants=network-online.target
 
@@ -7,9 +7,9 @@ Wants=network-online.target
 Type=simple
 User=ubuntu
 Group=ubuntu
-WorkingDirectory=/home/ubuntu/juan
+WorkingDirectory=/home/ubuntu/bemol
 Environment=NODE_ENV=production
-EnvironmentFile=/home/ubuntu/juan/.env
+EnvironmentFile=/home/ubuntu/bemol/.env
 ExecStart=/usr/bin/node dist/index.js
 Restart=always
 RestartSec=5

@@ -43,13 +43,13 @@ export const config = {
   discordToken: required("DISCORD_TOKEN"),
   discordClientId: required("DISCORD_CLIENT_ID"),
   discordGuildId: optional("DISCORD_GUILD_ID"),
-  wakeWord: optional("WAKE_WORD", "Juan"),
+  wakeWord: optional("WAKE_WORD", "Bemol"),
   musicChannelId: optional("MUSIC_CHANNEL_ID"),
   youtubeCookies: youtubeCookiesPath(),
   /**
    * Message Content es un intent privilegiado: Discord solo lo concede a bots
    * verificados con justificación. Sin él, el bot sigue funcionando con slash
-   * commands, botones y mensajes que empiecen mencionándolo (@Juan pon ...),
+   * commands, botones y mensajes que empiecen mencionándolo (@Bemol pon ...),
    * porque el contenido de los mensajes que mencionan al bot siempre llega.
    */
   messageContentIntent: flag("MESSAGE_CONTENT_INTENT", true),

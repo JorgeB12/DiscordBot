@@ -1,13 +1,13 @@
-# Juan — bot de música para Discord
+# Bemol — bot de música para Discord
 
-Juan se une a tu canal de voz y reproduce canciones y playlists de YouTube. Está pensado para servidores en español: comandos en español, panel de reproducción con botones, y órdenes en lenguaje natural (`Juan pon ...`).
+Bemol se une a tu canal de voz y reproduce canciones y playlists de YouTube. Está pensado para servidores en español: comandos en español, panel de reproducción con botones, y órdenes en lenguaje natural (`Bemol pon ...`).
 
 ## Características
 
 - **Panel de reproducción** que se actualiza solo: carátula, barra de progreso, quién pidió la canción, cola y siguiente tema, con botones para pausar, saltar, mezclar, repetir, ver la cola y añadir canciones.
 - **Estado del canal de voz** con la canción que suena, al estilo de los bots grandes, con un emoji propio.
 - **Audio oficial**: al pedir una canción por nombre, prioriza los canales "Artista - Topic" y los vídeos *Official Audio*, y descarta remixes, *sped up*, covers, karaokes, directos, videoclips y loops de una hora. Si pides una variante a propósito (`pon X remix`, `pon X en vivo`), la respeta.
-- **Tres formas de usarlo**: slash commands, mención (`@Juan pon ...`) o palabra de activación en el chat (`Juan pon ...`).
+- **Tres formas de usarlo**: slash commands, mención (`@Bemol pon ...`) o palabra de activación en el chat (`Bemol pon ...`).
 - Cola con paginación y menú para quitar canciones, playlists de YouTube, repetición de canción o cola, mezclar, volumen.
 - Se sale solo cuando el canal se queda vacío o no suena nada durante un rato, y avisa del motivo.
 - No guarda datos: todo vive en memoria y se borra al salir del canal. Ver [PRIVACY.md](PRIVACY.md) y [TERMS.md](TERMS.md).
@@ -23,7 +23,7 @@ Juan se une a tu canal de voz y reproduce canciones y playlists de YouTube. Est�
 ### 1. Crear el bot en Discord
 
 1. **New Application → Bot → Reset Token**. Copia el token.
-2. En **Bot → Privileged Gateway Intents**, activa *Message Content* solo si quieres usar `Juan pon ...` sin mención (ver [Intents](#intents-y-permisos)).
+2. En **Bot → Privileged Gateway Intents**, activa *Message Content* solo si quieres usar `Bemol pon ...` sin mención (ver [Intents](#intents-y-permisos)).
 3. **OAuth2 → URL Generator**: scopes `bot` y `applications.commands`; permisos *Connect*, *Speak*, *Send Messages*, *Embed Links*, *Read Message History* y *Set Voice Channel Status*.
 4. Abre la URL generada e invita el bot a tu servidor.
 5. Copia el **Application ID** (General Information).
@@ -39,7 +39,7 @@ Rellena al menos `DISCORD_TOKEN` y `DISCORD_CLIENT_ID`. El resto es opcional:
 | Variable | Para qué |
 | --- | --- |
 | `DISCORD_GUILD_ID` | Registra los slash commands solo en ese servidor (al instante; útil en desarrollo) |
-| `WAKE_WORD` | Palabra de activación en el chat. Por defecto `Juan` |
+| `WAKE_WORD` | Palabra de activación en el chat. Por defecto `Bemol` |
 | `MUSIC_CHANNEL_ID` | Canal de texto donde se pueden escribir `pon`, `skip`, `cola` sin prefijo |
 | `DEFAULT_VOLUME` | Volumen inicial, 0-150. Por defecto 50 |
 | `YOUTUBE_COOKIES` | Ruta a un `cookies.txt` de YouTube. Si dejas `cookies.txt` en la carpeta del proyecto se usa solo |
@@ -59,7 +59,7 @@ En desarrollo, con recarga automática: `npm run dev`.
 
 ## Cómo se usa
 
-Métete a un canal de voz y pide una canción. Juan responde con el panel de reproducción:
+Métete a un canal de voz y pide una canción. Bemol responde con el panel de reproducción:
 
 ```
 ▶ Sonando ahora                       ┌────────┐
@@ -84,20 +84,20 @@ Repetir: No · Volumen: 50% · Se actualiza cada 12 s
 
 | Slash | En el chat |
 | --- | --- |
-| `/play`, `/add` canción o enlace | `Juan pon ...` · `Juan añade ...` · pegar un enlace de YouTube |
-| `/buscar salsa` | `Juan busca salsa` y elegir en el menú |
-| `/skip`, `/next`, `/pausa`, `/seguir`, `/stop` | `Juan skip` · `Juan pausa` · `Juan sigue` · `Juan para` |
-| `/cola`, `/sonando` | `Juan cola` · `Juan qué suena` |
-| `/mezclar`, `/repetir`, `/volumen 80` | `Juan mezcla` · `Juan repite cola` · `Juan volumen 80` |
-| `/quitar 3`, `/limpiar` | `Juan quita 3` · `Juan limpia` |
-| `/unirme`, `/salir` | `Juan ven` · `Juan salte` |
-| `/ayuda` | `Juan ayuda` o solo `Juan` |
+| `/play`, `/add` canción o enlace | `Bemol pon ...` · `Bemol añade ...` · pegar un enlace de YouTube |
+| `/buscar salsa` | `Bemol busca salsa` y elegir en el menú |
+| `/skip`, `/next`, `/pausa`, `/seguir`, `/stop` | `Bemol skip` · `Bemol pausa` · `Bemol sigue` · `Bemol para` |
+| `/cola`, `/sonando` | `Bemol cola` · `Bemol qué suena` |
+| `/mezclar`, `/repetir`, `/volumen 80` | `Bemol mezcla` · `Bemol repite cola` · `Bemol volumen 80` |
+| `/quitar 3`, `/limpiar` | `Bemol quita 3` · `Bemol limpia` |
+| `/unirme`, `/salir` | `Bemol ven` · `Bemol salte` |
+| `/ayuda` | `Bemol ayuda` o solo `Bemol` |
 
-Todo lo que funciona con `Juan ...` funciona también mencionando al bot: `@Juan pon ...`.
+Todo lo que funciona con `Bemol ...` funciona también mencionando al bot: `@Bemol pon ...`.
 
 ## Intents y permisos
 
-- **Message Content** es un intent privilegiado. Solo hace falta para `Juan pon ...` sin mención y para los comandos sin prefijo en `MUSIC_CHANNEL_ID`. Con `MESSAGE_CONTENT_INTENT=false` el bot funciona igual con slash commands, botones y `@Juan ...`, y no hay que justificarlo al verificar la app.
+- **Message Content** es un intent privilegiado. Solo hace falta para `Bemol pon ...` sin mención y para los comandos sin prefijo en `MUSIC_CHANNEL_ID`. Con `MESSAGE_CONTENT_INTENT=false` el bot funciona igual con slash commands, botones y `@Bemol ...`, y no hay que justificarlo al verificar la app.
 - **Set Voice Channel Status** permite escribir la canción bajo el nombre del canal de voz. Sin él, el bot lo avisa una vez en el log y sigue funcionando.
 - No usa los intents *Presence* ni *Server Members*.
 
@@ -109,8 +109,8 @@ Ocurre sobre todo al ejecutar el bot en un servidor (IP de centro de datos). Exp
 
 En `deploy/` hay lo necesario para dejarlo corriendo 24/7 en cualquier VM Ubuntu (por ejemplo, una instancia *Always Free* de Oracle Cloud) como servicio systemd que se reinicia solo:
 
-- `deploy/setup.sh`: instala Node, ffmpeg y dependencias, compila y registra el servicio `juan`.
-- `deploy/juan.service`: unidad de systemd.
+- `deploy/setup.sh`: instala Node, ffmpeg y dependencias, compila y registra el servicio `bemol`.
+- `deploy/bemol.service`: unidad de systemd.
 - `deploy/upload.ps1`: desde Windows, compila, sube el proyecto por SSH y reinicia el servicio.
 
 ```powershell
@@ -121,7 +121,7 @@ En `deploy/` hay lo necesario para dejarlo corriendo 24/7 en cualquier VM Ubuntu
 .\deploy\upload.ps1 -VmHost <ip-de-la-vm>
 ```
 
-Logs en vivo en la VM: `journalctl -u juan -f`.
+Logs en vivo en la VM: `journalctl -u bemol -f`.
 
 ## Verificación de Discord
 
@@ -143,7 +143,7 @@ src/
     handlers.ts         slash commands, botones, menús, mensajes
     embeds.ts           todos los embeds
     controls.ts         botones y menús
-    intent.ts           interpretación de "Juan pon ..."
+    intent.ts           interpretación de "Bemol pon ..."
     voiceStatus.ts      estado del canal de voz y emoji de la app
 deploy/                 scripts para servidor Linux
 assets/                 emoji de la app

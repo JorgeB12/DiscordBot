@@ -13,22 +13,22 @@ import type { LoopMode } from "../audio/types.js";
 import { formatDuration } from "../util/time.js";
 
 export const CONTROL_IDS = {
-  previous: "juan:prev",
-  pause: "juan:pause",
-  skip: "juan:skip",
-  stop: "juan:stop",
-  loop: "juan:loop",
-  shuffle: "juan:shuffle",
-  queue: "juan:queue",
-  add: "juan:add",
-  addModal: "juan:addmodal",
-  addQuery: "juan:addquery",
-  search: "juan:search",
-  removeSelect: "juan:remove",
-  queueRefresh: "juan:qrefresh",
+  previous: "bemol:prev",
+  pause: "bemol:pause",
+  skip: "bemol:skip",
+  stop: "bemol:stop",
+  loop: "bemol:loop",
+  shuffle: "bemol:shuffle",
+  queue: "bemol:queue",
+  add: "bemol:add",
+  addModal: "bemol:addmodal",
+  addQuery: "bemol:addquery",
+  search: "bemol:search",
+  removeSelect: "bemol:remove",
+  queueRefresh: "bemol:qrefresh",
 } as const;
 
-export const QUEUE_PAGE_PREFIX = "juan:qpage:";
+export const QUEUE_PAGE_PREFIX = "bemol:qpage:";
 
 export const LOOP_LABEL: Record<LoopMode, string> = {
   off: "No",

@@ -121,7 +121,7 @@ export class GuildPlayer {
 
   /**
    * Estado del canal de voz (línea bajo el nombre del canal): la canción que
-   * suena, con el emoji naranja de Juan; vacío cuando no suena nada.
+   * suena, con el emoji naranja de Bemol; vacío cuando no suena nada.
    */
   private async syncVoiceStatus(): Promise<void> {
     const channelId = this.channelId;

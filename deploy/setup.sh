@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Instala Node, dependencias y el servicio systemd de Juan en Ubuntu (Oracle Cloud).
+# Instala Node, dependencias y el servicio systemd de Bemol en Ubuntu (Oracle Cloud).
 set -euo pipefail
 
-APP_DIR="${APP_DIR:-$HOME/juan}"
-SERVICE_NAME="juan"
+APP_DIR="${APP_DIR:-$HOME/bemol}"
+SERVICE_NAME="bemol"
 
 if [[ $EUID -eq 0 ]]; then
   echo "No ejecutes este script como root. Entra como ubuntu y vuelve a correrlo."
@@ -36,8 +36,8 @@ npm install
 npx tsc
 npm prune --omit=dev
 
-sudo cp "$APP_DIR/deploy/juan.service" /etc/systemd/system/${SERVICE_NAME}.service
-sudo sed -i "s|/home/ubuntu/juan|$APP_DIR|g" /etc/systemd/system/${SERVICE_NAME}.service
+sudo cp "$APP_DIR/deploy/bemol.service" /etc/systemd/system/${SERVICE_NAME}.service
+sudo sed -i "s|/home/ubuntu/bemol|$APP_DIR|g" /etc/systemd/system/${SERVICE_NAME}.service
 sudo sed -i "s|^User=ubuntu$|User=$USER|" /etc/systemd/system/${SERVICE_NAME}.service
 sudo sed -i "s|^Group=ubuntu$|Group=$USER|" /etc/systemd/system/${SERVICE_NAME}.service
 
@@ -48,4 +48,4 @@ sleep 2
 sudo systemctl --no-pager --full status "$SERVICE_NAME" || true
 echo
 echo "Logs en vivo: journalctl -u $SERVICE_NAME -f"
-echo "Juan debería aparecer en línea en Discord en unos segundos."
+echo "Bemol debería aparecer en línea en Discord en unos segundos."

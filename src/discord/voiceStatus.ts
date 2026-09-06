@@ -11,8 +11,8 @@ import type { Song } from "../audio/musicPlayer.js";
  * permiso "Establecer estado del canal de voz" (o Gestionar canales).
  */
 
-const EMOJI_NAME = "juan_nota";
-const EMOJI_FILE = path.join(process.cwd(), "assets", "juan-nota.png");
+const EMOJI_NAME = "bemol_nota";
+const EMOJI_FILE = path.join(process.cwd(), "assets", "bemol-nota.png");
 const FALLBACK_EMOJI = "🎵";
 const MAX_STATUS = 500;
 

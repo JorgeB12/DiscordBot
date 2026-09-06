@@ -5,7 +5,7 @@ import { config } from "../config.js";
 import { LOOP_LABEL, idleControls, playerControls } from "./controls.js";
 import { formatDuration, formatDurationWords, progressBar } from "../util/time.js";
 
-export const JUAN_COLOR = 0xc724b1;
+export const BEMOL_COLOR = 0xc724b1;
 export const PAUSED_COLOR = 0xf5a623;
 export const MUTED_COLOR = 0x6b7280;
 export const ERROR_COLOR = 0xe53e3e;
@@ -36,7 +36,7 @@ export function nowPlayingEmbed(player: GuildPlayer): EmbedBuilder {
   ].filter((line) => line !== null);
 
   const embed = new EmbedBuilder()
-    .setColor(paused ? PAUSED_COLOR : JUAN_COLOR)
+    .setColor(paused ? PAUSED_COLOR : BEMOL_COLOR)
     .setAuthor({ name: paused ? "⏸  En pausa" : "▶  Sonando ahora" })
     .setTitle(song.title.slice(0, 256))
     .setURL(song.url)
@@ -64,7 +64,7 @@ export function idleEmbed(player?: GuildPlayer): EmbedBuilder {
         `Si no suena nada en **${minutes} min**, me salgo del canal de voz.`,
       ].join("\n"),
     )
-    .setFooter({ text: player ? statusLine(player) : "Juan" });
+    .setFooter({ text: player ? statusLine(player) : "Bemol" });
 }
 
 export function farewellEmbed(channelName: string | null, reason: LeaveReason): EmbedBuilder {
@@ -196,7 +196,7 @@ export function queueEmbed(player: GuildPlayer, page = 1): EmbedBuilder {
   });
 
   const embed = new EmbedBuilder()
-    .setColor(JUAN_COLOR)
+    .setColor(BEMOL_COLOR)
     .setAuthor({ name: `📃  Cola de ${player.guildName}` })
     .setDescription(
       [
@@ -237,7 +237,7 @@ export function searchEmbed(songs: Song[], query: string): EmbedBuilder {
     return `**${index + 1}.** [${escapeMd(song.title)}](${song.url}) \`${formatDuration(song.durationMs)}\`\n　　*${escapeMd(song.author)}*`;
   });
   const embed = new EmbedBuilder()
-    .setColor(JUAN_COLOR)
+    .setColor(BEMOL_COLOR)
     .setAuthor({ name: "🔎  Resultados de búsqueda" })
     .setTitle(`«${query.slice(0, 80)}»`)
     .setDescription(lines.join("\n"))
@@ -264,8 +264,8 @@ export function searchResolvedEmbed(query: string, chosen: Song | null): EmbedBu
 export function helpEmbed(wakeWord: string): EmbedBuilder {
   const w = wakeWord;
   const embed = new EmbedBuilder()
-    .setColor(JUAN_COLOR)
-    .setAuthor({ name: "🎵  Juan · bot de música" })
+    .setColor(BEMOL_COLOR)
+    .setAuthor({ name: "🎵  Bemol · bot de música" })
     .setDescription(
       [
         `Pongo música de YouTube en tu canal de voz. Puedes usar **slash commands**, hablarme en el chat empezando por **${w}** o mencionándome (**@${w} pon ...**), o usar los **botones del panel** que aparece al reproducir.`,
@@ -312,7 +312,7 @@ export function helpEmbed(wakeWord: string): EmbedBuilder {
     config.supportUrl ? `[Soporte](${config.supportUrl})` : null,
   ].filter((link) => link !== null);
   if (legal.length) {
-    embed.addFields({ name: "ℹ️  Acerca de Juan", value: `${legal.join(" · ")}\nNo guardo datos personales: la cola vive en memoria y se borra al salir del canal.` });
+    embed.addFields({ name: "ℹ️  Acerca de Bemol", value: `${legal.join(" · ")}\nNo guardo datos personales: la cola vive en memoria y se borra al salir del canal.` });
   }
 
   return embed.setFooter({
@@ -325,7 +325,7 @@ export function helpEmbed(wakeWord: string): EmbedBuilder {
 /* ────────────────────────────── Mensajes cortos ────────────────────────────── */
 
 export function infoEmbed(text: string): EmbedBuilder {
-  return new EmbedBuilder().setColor(JUAN_COLOR).setDescription(text);
+  return new EmbedBuilder().setColor(BEMOL_COLOR).setDescription(text);
 }
 
 export function okEmbed(text: string): EmbedBuilder {
