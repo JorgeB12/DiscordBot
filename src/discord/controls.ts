@@ -170,7 +170,9 @@ export function queueControls(
         .setStyle(ButtonStyle.Secondary)
         .setDisabled(page <= 1),
       new ButtonBuilder()
-        .setCustomId(`${QUEUE_PAGE_PREFIX}0`)
+        // Id propio: dos componentes del mismo mensaje no pueden compartir custom_id
+        // (en la página 1, "anterior" ya vale ...:0 y Discord rechazaría el mensaje).
+        .setCustomId(`${QUEUE_PAGE_PREFIX}info`)
         .setLabel(`Página ${page} / ${pages}`)
         .setStyle(ButtonStyle.Secondary)
         .setDisabled(true),

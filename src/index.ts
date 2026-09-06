@@ -45,6 +45,8 @@ async function main(): Promise<void> {
       await handleInteraction(interaction);
     } catch (error) {
       console.error("[interaction] failed", error);
+      const raw = (error as { rawError?: unknown }).rawError;
+      if (raw) console.error("[interaction] detalle:", JSON.stringify(raw).slice(0, 1500));
       if (!interaction.isRepliable()) return;
       const reply = { content: "Falló el comando.", ephemeral: true };
       if (interaction.deferred || interaction.replied) {

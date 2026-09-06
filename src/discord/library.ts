@@ -594,7 +594,8 @@ function playlistControls(playlist: Playlist, page: number, pages: number, own: 
     rows.push(
       new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder().setCustomId(`lib:pl:page:${playlist.id}:${page - 1}`).setEmoji("◀️").setStyle(ButtonStyle.Secondary).setDisabled(page <= 1),
-        new ButtonBuilder().setCustomId(`lib:pl:page:${playlist.id}:0`).setLabel(`Página ${page} / ${pages}`).setStyle(ButtonStyle.Secondary).setDisabled(true),
+        // Id propio: no puede coincidir con el de "anterior" en la página 1.
+        new ButtonBuilder().setCustomId(`lib:pl:info:${playlist.id}`).setLabel(`Página ${page} / ${pages}`).setStyle(ButtonStyle.Secondary).setDisabled(true),
         new ButtonBuilder().setCustomId(`lib:pl:page:${playlist.id}:${page + 1}`).setEmoji("▶️").setStyle(ButtonStyle.Secondary).setDisabled(page >= pages),
       ),
     );
@@ -613,7 +614,7 @@ function favoritesControls(page: number, pages: number): ActionRowBuilder<Button
     rows.push(
       new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder().setCustomId(`lib:fav:page:${page - 1}`).setEmoji("◀️").setStyle(ButtonStyle.Secondary).setDisabled(page <= 1),
-        new ButtonBuilder().setCustomId("lib:fav:page:0").setLabel(`Página ${page} / ${pages}`).setStyle(ButtonStyle.Secondary).setDisabled(true),
+        new ButtonBuilder().setCustomId("lib:fav:info").setLabel(`Página ${page} / ${pages}`).setStyle(ButtonStyle.Secondary).setDisabled(true),
         new ButtonBuilder().setCustomId(`lib:fav:page:${page + 1}`).setEmoji("▶️").setStyle(ButtonStyle.Secondary).setDisabled(page >= pages),
       ),
     );
