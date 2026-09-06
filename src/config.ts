@@ -59,6 +59,11 @@ export const config = {
   daveEncryption: flag("DAVE_ENCRYPTION", true),
   /** Registra la negociación de voz y del cifrado DAVE en el log (solo para diagnosticar). */
   voiceDebug: flag("VOICE_DEBUG", false),
+  /** Spotify Web API (client credentials) para importar álbumes y playlists; opcional. */
+  spotifyClientId: optional("SPOTIFY_CLIENT_ID"),
+  spotifyClientSecret: optional("SPOTIFY_CLIENT_SECRET"),
+  /** Normalización de volumen entre canciones (filtro loudnorm de ffmpeg). */
+  audioNormalize: flag("AUDIO_NORMALIZE", true),
   /** Enlaces legales que Discord pide para verificar la app; salen en /ayuda. */
   privacyUrl: optional("PRIVACY_URL"),
   termsUrl: optional("TERMS_URL"),

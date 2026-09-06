@@ -92,7 +92,7 @@ export async function playFor(
     player.setTextChannel(textChannel);
     const result = await player.playQuery(query, requesterOf(member), { adoptPanel: true });
     rememberSongs(result.songs);
-    return replyFor(player, result.songs, result.started, result.playlistTitle);
+    return replyFor(player, result.songs, result.started, result.playlistTitle, result.pendingCount ?? 0);
   } catch (error) {
     console.error("[music] failed", error);
     void player?.publishPanel();
@@ -139,10 +139,10 @@ export async function playSongs(
   }
 }
 
-function replyFor(player: GuildPlayer, songs: Song[], started: boolean, label?: string): MusicReply {
-  if (songs.length > 1) {
+function replyFor(player: GuildPlayer, songs: Song[], started: boolean, label?: string, pendingCount = 0): MusicReply {
+  if (songs.length > 1 || pendingCount > 0) {
     return {
-      embeds: [playlistQueuedEmbed(label, songs, started, player)],
+      embeds: [playlistQueuedEmbed(label, songs, started, player, pendingCount)],
       // La playlist tiene su propio resumen; el panel se publica justo debajo.
       onSent: started ? () => player.publishPanel() : undefined,
     };

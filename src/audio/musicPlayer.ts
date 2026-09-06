@@ -5,7 +5,8 @@ import prism from "prism-media";
 import { YouTube, type Video } from "youtube-sr";
 import { candidateFromVideo, pickBestAudioTracks, type AudioCandidate } from "./audioPick.js";
 import { config } from "../config.js";
-import { ensureFfmpegOnPath, ytdlpPath } from "./ffmpeg.js";
+import { externalKind, resolveExternal, type ExternalTrack } from "./external.js";
+import { ensureFfmpegOnPath, networkFfmpegPath, ytdlpPath } from "./ffmpeg.js";
 import { ytDlpJson, type YtDlpFlags } from "./ytdlp.js";
 
 export type Requester = {
@@ -13,6 +14,8 @@ export type Requester = {
   name: string;
   avatarUrl?: string;
 };
+
+export type SongKind = "youtube" | "soundcloud" | "stream";
 
 export type Song = {
   id: string;
@@ -22,6 +25,16 @@ export type Song = {
   thumbnail: string | null;
   author: string;
   requestedBy: Requester;
+  /** De dónde sale el audio. Sin valor = YouTube. "stream" = radio o URL de audio directa. */
+  kind?: SongKind;
+};
+
+export type ResolvedTracks = {
+  songs: Song[];
+  playlistTitle?: string;
+  /** Resto de una lista externa (Spotify, Deezer…) que se resuelve en segundo plano por lotes. */
+  pending?: AsyncGenerator<Song[]>;
+  pendingCount?: number;
 };
 
 export type TrackStream = {
@@ -50,13 +63,19 @@ export function isPlaylistUrl(url: string): boolean {
   }
 }
 
-export async function resolveTracks(
-  query: string,
-  requestedBy: Requester,
-): Promise<{ songs: Song[]; playlistTitle?: string }> {
+const SOUNDCLOUD_URL = /https?:\/\/(?:www\.|m\.|on\.)?soundcloud\.com\/[^\s<>]+/i;
+const ANY_URL = /https?:\/\/[^\s<>]+/i;
+const STREAM_HINT = /\.(mp3|aac|ogg|opus|m4a|flac|wav|m3u8?|pls)(\?|$)|\/stream\b|icecast|shoutcast|radio|\/live\b|:8\d{3}\//i;
+
+export async function resolveTracks(query: string, requestedBy: Requester): Promise<ResolvedTracks> {
   const trimmed = query.trim();
   const url = extractYoutubeUrl(trimmed);
   const rest = url ? trimmed.replace(url, "").trim() : trimmed;
+
+  if (!url) {
+    const other = trimmed.match(ANY_URL)?.[0]?.replace(/[),.;]+$/, "");
+    if (other) return resolveOtherUrl(other, requestedBy);
+  }
 
   if (!url && (!rest || GENERIC.test(rest))) {
     throw new Error("Dime el nombre de la canción, el artista o pega el enlace de YouTube.");
@@ -80,6 +99,111 @@ export async function resolveTracks(
     throw new Error(`No encontré nada para "${rest}".`);
   }
   return { songs: [songs[0]] };
+}
+
+/* ───────────── Otras fuentes: Spotify/Deezer/Tidal, SoundCloud, streams ───────────── */
+
+const IMPORT_FIRST = 3;
+const IMPORT_BATCH = 5;
+
+async function resolveOtherUrl(url: string, requestedBy: Requester): Promise<ResolvedTracks> {
+  if (externalKind(url)) {
+    const list = await resolveExternal(url);
+    if (!list.tracks.length) throw new Error(`Esa lista de ${list.source} está vacía.`);
+    const first = await matchMany(list.tracks.slice(0, IMPORT_FIRST), requestedBy);
+    if (!first.length) throw new Error(`No encontré en YouTube ninguna canción de esa lista de ${list.source}.`);
+    const remaining = list.tracks.slice(IMPORT_FIRST);
+    const title = list.tracks.length > 1 ? `${list.title} (${list.source})` : undefined;
+    return {
+      songs: first,
+      playlistTitle: title,
+      pending: remaining.length ? importInBatches(remaining, requestedBy) : undefined,
+      pendingCount: remaining.length,
+    };
+  }
+
+  if (SOUNDCLOUD_URL.test(url)) {
+    const raw = await ytDlpJson(url, {
+      dumpSingleJson: true,
+      skipDownload: true,
+      noWarnings: true,
+      noCheckCertificates: true,
+      flatPlaylist: true,
+      playlistEnd: MAX_PLAYLIST,
+    });
+    const body = raw as { title?: string; entries?: YtDlpEntry[] } & YtDlpEntry;
+    const entries = Array.isArray(body.entries) ? body.entries : [body];
+    const songs = entries
+      .map((entry) => songFromYtDlp(entry, requestedBy))
+      .filter((song): song is Song => song !== null)
+      .map((song) => ({ ...song, kind: "soundcloud" as const }));
+    if (!songs.length) throw new Error("No pude leer ese enlace de SoundCloud.");
+    return { songs, playlistTitle: entries.length > 1 ? body.title : undefined };
+  }
+
+  if (STREAM_HINT.test(url)) return { songs: [streamSong(url, requestedBy)] };
+
+  // Página desconocida: probamos con yt-dlp (Bandcamp, Vimeo, etc.); si no, la tratamos como audio directo.
+  try {
+    const raw = await ytDlpJson(url, { dumpSingleJson: true, skipDownload: true, noWarnings: true, noCheckCertificates: true, noPlaylist: true });
+    const song = songFromYtDlp(raw as YtDlpEntry, requestedBy, url);
+    if (song) return { songs: [{ ...song, kind: "soundcloud" }] };
+  } catch {
+    // seguimos con el stream directo
+  }
+  return { songs: [streamSong(url, requestedBy)] };
+}
+
+export function streamSong(url: string, requestedBy: Requester, name?: string, extra: Partial<Song> = {}): Song {
+  let host = url;
+  try {
+    host = new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    // URL rara: dejamos el texto tal cual
+  }
+  return {
+    id: `stream:${url}`,
+    title: name ?? host,
+    url,
+    durationMs: 0,
+    thumbnail: null,
+    author: name ? host : "En directo",
+    requestedBy,
+    kind: "stream",
+    ...extra,
+  };
+}
+
+async function* importInBatches(tracks: ExternalTrack[], requestedBy: Requester): AsyncGenerator<Song[]> {
+  for (let i = 0; i < tracks.length; i += IMPORT_BATCH) {
+    const batch = await matchMany(tracks.slice(i, i + IMPORT_BATCH), requestedBy);
+    if (batch.length) yield batch;
+  }
+}
+
+async function matchMany(tracks: ExternalTrack[], requestedBy: Requester): Promise<Song[]> {
+  const results = await Promise.all(tracks.map((track) => matchOnYoutube(track, requestedBy).catch(() => null)));
+  return results.filter((song): song is Song => song !== null);
+}
+
+/** Encuentra en YouTube la versión de audio de una canción descrita por título y artista. */
+export async function matchOnYoutube(track: ExternalTrack, requestedBy: Requester): Promise<Song | null> {
+  if (track.youtubeUrl) {
+    try {
+      return await loadVideo(track.youtubeUrl, requestedBy);
+    } catch {
+      // seguimos por búsqueda
+    }
+  }
+  const query = `${track.artist} ${track.title}`.trim();
+  const videos = await YouTube.search(`${query} audio`, { limit: 8, type: "video" }).catch(() => [] as Video[]);
+  let candidates = videos.map(candidateFromVideo).filter((item): item is AudioCandidate => item !== null);
+  if (track.durationMs > 0) {
+    const close = candidates.filter((item) => !item.durationMs || Math.abs(item.durationMs - track.durationMs) < Math.max(15_000, track.durationMs * 0.12));
+    if (close.length) candidates = close;
+  }
+  const best = pickBestAudioTracks(candidates, 1, `${track.title} ${track.artist}`)[0];
+  return best ? songFromCandidate(best, requestedBy) : null;
 }
 
 export async function searchTracks(
@@ -225,8 +349,21 @@ async function searchCandidatesWithYtDlp(query: string, limit: number): Promise<
   }
 }
 
+/** Filtros de audio de ffmpeg: normalización de sonoridad entre canciones y fuentes. */
+function audioFilters(song: Song): string[] {
+  if (!config.audioNormalize) return [];
+  // loudnorm en una pasada actúa como normalizador dinámico; -14 LUFS es el
+  // objetivo habitual de las plataformas de streaming. En radios lo aplicamos igual.
+  void song;
+  return ["-af", "loudnorm=I=-14:TP=-1.5:LRA=11"];
+}
+
+const PCM_OUT = ["-f", "s16le", "-ar", "48000", "-ac", "2"];
+
 export function createTrackStream(song: Song, volume: number): TrackStream {
   ensureFfmpegOnPath();
+  if (song.kind === "stream") return createDirectStream(song, volume);
+
   const ytdlp = spawn(ytdlpPath(), ytdlpArgs(song.url), {
     stdio: ["ignore", "pipe", "pipe"],
     windowsHide: true,
@@ -238,21 +375,7 @@ export function createTrackStream(song: Song, volume: number): TrackStream {
   }
 
   const ffmpeg = new prism.FFmpeg({
-    args: [
-      "-hide_banner",
-      "-loglevel",
-      "error",
-      "-analyzeduration",
-      "0",
-      "-i",
-      "-",
-      "-f",
-      "s16le",
-      "-ar",
-      "48000",
-      "-ac",
-      "2",
-    ],
+    args: ["-hide_banner", "-loglevel", "error", "-analyzeduration", "0", "-i", "-", ...audioFilters(song), ...PCM_OUT],
   });
 
   ytdlp.stdout.pipe(ffmpeg);
@@ -303,6 +426,60 @@ export function createTrackStream(song: Song, volume: number): TrackStream {
   };
 }
 
+/** Radios y URLs de audio directas: ffmpeg lee la URL él mismo, con reconexión automática. */
+function createDirectStream(song: Song, volume: number): TrackStream {
+  const ffmpeg = spawn(
+    networkFfmpegPath(),
+    [
+      "-hide_banner",
+      "-loglevel",
+      "error",
+      "-reconnect",
+      "1",
+      "-reconnect_streamed",
+      "1",
+      "-reconnect_delay_max",
+      "5",
+      "-user_agent",
+      "Bemol-Discord-Bot/2.0",
+      "-i",
+      song.url,
+      ...audioFilters(song),
+      ...PCM_OUT,
+      "pipe:1",
+    ],
+    { stdio: ["ignore", "pipe", "pipe"], windowsHide: true },
+  );
+  if (!ffmpeg.stdout) {
+    ffmpeg.kill();
+    throw new Error("No pude iniciar ffmpeg para el stream.");
+  }
+  lowerPriority(ffmpeg.pid);
+  ffmpeg.on("error", (error) => {
+    if (!isBenignPipeError(error)) console.error("[music] ffmpeg (stream)", error);
+  });
+  ffmpeg.stdout.on("error", (error) => {
+    if (!isBenignPipeError(error)) console.error("[music] ffmpeg stdout", error);
+  });
+  ffmpeg.stderr?.on("data", (chunk: Buffer) => {
+    const text = chunk.toString().trim();
+    if (text) console.warn("[ffmpeg]", text.slice(0, 300));
+  });
+
+  const resource = createAudioResource(ffmpeg.stdout, { inputType: StreamType.Raw, inlineVolume: true, metadata: song });
+  resource.volume?.setVolume(Math.min(1.5, Math.max(0, volume)));
+  resource.encoder?.setBitrate(config.opusBitrateKbps * 1000);
+  resource.encoder?.setFEC(config.opusFec);
+  resource.encoder?.setPLP(config.opusFec ? 0.05 : 0);
+
+  return {
+    resource,
+    destroy: () => {
+      if (!ffmpeg.killed) ffmpeg.kill("SIGKILL");
+    },
+  };
+}
+
 function lowerPriority(pid: number | undefined): void {
   if (!pid) return;
   try {
@@ -338,6 +515,7 @@ function ytdlpArgs(url: string): string[] {
 }
 
 export function artworkUrl(song: Song): string | null {
+  if (song.kind && song.kind !== "youtube") return song.thumbnail;
   const id = song.id.match(/[\w-]{11}/)?.[0];
   if (id && !id.includes("http")) {
     return `https://i.ytimg.com/vi/${id}/hqdefault.jpg`;

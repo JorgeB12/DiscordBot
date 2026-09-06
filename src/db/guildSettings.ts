@@ -16,6 +16,8 @@ export type GuildSettings = {
   voteskipMinListeners: number;
   /** Canal de texto preferido para el panel cuando no hay otro. */
   musicChannelId: string | null;
+  /** Al acabarse la cola, seguir con canciones parecidas. */
+  autoplay: boolean;
 };
 
 type Row = {
@@ -28,6 +30,7 @@ type Row = {
   voteskip_percent: number;
   voteskip_min_listeners: number;
   music_channel_id: string | null;
+  autoplay: number;
 };
 
 const cache = new Map<string, GuildSettings>();
@@ -43,6 +46,7 @@ export function defaultSettings(guildId: string): GuildSettings {
     voteskipPercent: 50,
     voteskipMinListeners: 3,
     musicChannelId: null,
+    autoplay: false,
   };
 }
 
@@ -62,6 +66,7 @@ export function getGuildSettings(guildId: string): GuildSettings {
         voteskipPercent: row.voteskip_percent,
         voteskipMinListeners: row.voteskip_min_listeners,
         musicChannelId: row.music_channel_id,
+        autoplay: row.autoplay === 1,
       }
     : defaultSettings(guildId);
   cache.set(guildId, settings);
@@ -74,8 +79,8 @@ export function updateGuildSettings(guildId: string, patch: Partial<Omit<GuildSe
     .prepare(
       `INSERT INTO guild_settings (
          guild_id, default_volume, stay_247, idle_leave_min, empty_leave_min,
-         voteskip, voteskip_percent, voteskip_min_listeners, music_channel_id, updated_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         voteskip, voteskip_percent, voteskip_min_listeners, music_channel_id, autoplay, updated_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(guild_id) DO UPDATE SET
          default_volume = excluded.default_volume,
          stay_247 = excluded.stay_247,
@@ -85,6 +90,7 @@ export function updateGuildSettings(guildId: string, patch: Partial<Omit<GuildSe
          voteskip_percent = excluded.voteskip_percent,
          voteskip_min_listeners = excluded.voteskip_min_listeners,
          music_channel_id = excluded.music_channel_id,
+         autoplay = excluded.autoplay,
          updated_at = excluded.updated_at`,
     )
     .run(
@@ -97,6 +103,7 @@ export function updateGuildSettings(guildId: string, patch: Partial<Omit<GuildSe
       next.voteskipPercent,
       next.voteskipMinListeners,
       next.musicChannelId,
+      next.autoplay ? 1 : 0,
       Date.now(),
     );
   cache.set(guildId, next);

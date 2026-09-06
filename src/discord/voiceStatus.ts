@@ -53,6 +53,7 @@ export function statusText(song: Song, paused: boolean): string {
 }
 
 export function trackLabel(song: Song): string {
+  if (song.kind === "stream") return `📻 ${song.title}`.slice(0, 120);
   let title = song.title
     .replace(/[([【][^)\]】]*(official|oficial|audio|video|lyric|letra|visuali[sz]er|hd|hq|4k|remaster)[^)\]】]*[)\]】]/gi, "")
     .replace(/\s*\|\s*(official|oficial|audio|video|lyrics?|letra).*$/i, "")

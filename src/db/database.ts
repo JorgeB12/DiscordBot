@@ -60,6 +60,14 @@ function migrate(database: DatabaseSync): void {
       saved_at INTEGER NOT NULL
     );
   `);
+  addColumnIfMissing(database, "guild_settings", "autoplay", "INTEGER NOT NULL DEFAULT 0");
+}
+
+function addColumnIfMissing(database: DatabaseSync, table: string, column: string, definition: string): void {
+  const columns = database.prepare(`PRAGMA table_info(${table})`).all() as unknown as { name: string }[];
+  if (!columns.some((item) => item.name === column)) {
+    database.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  }
 }
 
 export function closeDb(): void {

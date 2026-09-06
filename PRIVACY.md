@@ -36,7 +36,7 @@ El servidor donde corre Bemol guarda registros técnicos (logs) para diagnostica
 
 ## Servicios de terceros
 
-Para reproducir música, Bemol consulta **YouTube** y descarga el audio de la canción pedida. En esa consulta YouTube recibe la búsqueda o el enlace, pero **no recibe ningún dato tuyo de Discord**. El uso de YouTube está sujeto a sus propias condiciones y política de privacidad.
+Para reproducir música, Bemol consulta **YouTube** y descarga el audio de la canción pedida. Si pegas un enlace de **Spotify** o **Deezer**, consulta esas plataformas para leer el título, el artista y la duración, y después busca la canción en YouTube. Los enlaces de **SoundCloud** y las **radios** se reproducen desde su origen, y `/radio buscar` consulta el directorio público **Radio Browser**. En todas esas consultas el servicio recibe solo la búsqueda o el enlace, **nunca datos tuyos de Discord**. Cada servicio está sujeto a sus propias condiciones y política de privacidad.
 
 Bemol no usa servicios de analítica, publicidad ni seguimiento.
 

@@ -34,6 +34,7 @@ import {
   type TrackStream,
 } from "./musicPlayer.js";
 import type { LoopMode } from "./types.js";
+import { relatedSongs } from "./autoplay.js";
 import { waitForStatus } from "./waitForStatus.js";
 
 type PlayerOptions = {
@@ -46,6 +47,8 @@ export type PlayResult = {
   started: boolean;
   songs: Song[];
   playlistTitle?: string;
+  /** Canciones de una lista externa que siguen importándose en segundo plano. */
+  pendingCount?: number;
 };
 
 export type LeaveReason = "idle" | "empty" | "manual" | "moved" | "disconnected" | "shutdown";
@@ -62,6 +65,8 @@ export class GuildPlayer {
   private destroyed = false;
   private stream: TrackStream | null = null;
   private skipRequested = false;
+  /** Se paró a propósito (/stop): no arrancar autoplay. */
+  private stopRequested = false;
   private idleTimer: ReturnType<typeof setTimeout> | null = null;
   private emptyTimer: ReturnType<typeof setTimeout> | null = null;
   private panelTimer: ReturnType<typeof setInterval> | null = null;
@@ -274,14 +279,32 @@ export class GuildPlayer {
     requestedBy: Requester,
     options: { adoptPanel?: boolean } = {},
   ): Promise<PlayResult> {
-    const { songs, playlistTitle } = await resolveTracks(query, requestedBy);
+    const { songs, playlistTitle, pending, pendingCount } = await resolveTracks(query, requestedBy);
     const willStart = !this.current && !this.playing;
     if (options.adoptPanel && willStart) this.expectAdoption();
     try {
-      return await this.enqueue(songs, playlistTitle);
+      const result = await this.enqueue(songs, playlistTitle);
+      if (pending) void this.importInBackground(pending);
+      return { ...result, pendingCount };
     } catch (error) {
       this.cancelAdoption();
       throw error;
+    }
+  }
+
+  /** Va añadiendo a la cola los lotes de una lista externa mientras ya suena la música. */
+  private async importInBackground(pending: AsyncGenerator<Song[]>): Promise<void> {
+    try {
+      for await (const batch of pending) {
+        if (this.destroyed) return;
+        const room = config.maxQueue - this.queue.length - (this.current ? 1 : 0);
+        if (room <= 0) return;
+        this.queue.push(...batch.slice(0, room));
+        if (!this.current && !this.playing) await this.playNext();
+        else void this.refreshPanel();
+      }
+    } catch (error) {
+      console.warn("[import] la importación en segundo plano se detuvo:", error instanceof Error ? error.message : error);
     }
   }
 
@@ -401,6 +424,7 @@ export class GuildPlayer {
     this.queue.length = 0;
     this.current = null;
     this.skipRequested = true;
+    this.stopRequested = true;
     this.player.stop(true);
     this.stopPanelLoop();
     this.armIdle();
@@ -628,6 +652,23 @@ export class GuildPlayer {
         this.stream = null;
       }
     }
+
+    // Autoplay: si el servidor lo tiene activado, seguimos con canciones parecidas a la última.
+    if (!this.destroyed && !this.stopRequested && getGuildSettings(this.guildId).autoplay) {
+      const seed = this.history[this.history.length - 1];
+      if (seed && !seed.kind) {
+        const exclude = new Set([...this.history.map((song) => song.id)]);
+        const picks = await relatedSongs(seed, exclude, 3);
+        if (picks.length && !this.destroyed && !this.queue.length) {
+          const requester = { id: "", name: "Autoplay" };
+          this.queue.push(...picks.map((pick) => ({ ...pick, requestedBy: requester })));
+          console.log(`[autoplay] +${picks.length} parecidas a ${seed.title}`);
+          await this.playNext();
+          return;
+        }
+      }
+    }
+    this.stopRequested = false;
 
     this.current = null;
     this.stopPanelLoop();

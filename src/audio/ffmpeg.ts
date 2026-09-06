@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 
@@ -21,4 +22,16 @@ export function ytdlpPath(): string {
     YOUTUBE_DL_PATH: string;
   };
   return YOUTUBE_DL_PATH;
+}
+
+/**
+ * ffmpeg para leer URLs por red (radios, streams). Las builds estáticas de
+ * `ffmpeg-static` en Linux no resuelven nombres de dominio, así que si hay un
+ * ffmpeg instalado en el sistema (apt) preferimos ese; si no, el estático.
+ */
+export function networkFfmpegPath(): string {
+  for (const candidate of ["/usr/bin/ffmpeg", "/usr/local/bin/ffmpeg", "/opt/homebrew/bin/ffmpeg"]) {
+    if (existsSync(candidate)) return candidate;
+  }
+  return ensureFfmpegOnPath() ?? "ffmpeg";
 }

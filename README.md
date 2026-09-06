@@ -11,7 +11,8 @@ Bemol se une a tu canal de voz y reproduce canciones y playlists de YouTube. Est
 - Cola con paginación y menú para quitar canciones, playlists de YouTube, repetición de canción o cola, mezclar, volumen.
 - Se sale solo cuando el canal se queda vacío o no suena nada durante un rato, y avisa del motivo.
 - **Biblioteca personal**: playlists y favoritos ligados a tu cuenta, que funcionan en cualquier servidor, con tarjetas para compartir.
-- **Configuración por servidor**: DJs, votación para saltar, 24/7, auto-desconexión y volumen inicial.
+- **Más fuentes**: enlaces de Spotify y Deezer (canciones, álbumes y playlists), SoundCloud, URLs de audio y radios en directo con `/radio`, además de autoplay y normalización de volumen.
+- **Configuración por servidor**: DJs, votación para saltar, 24/7, auto-desconexión, autoplay y volumen inicial.
 - **Reanuda la música tras un reinicio** y solo guarda lo que creas a propósito. Ver [PRIVACY.md](PRIVACY.md) y [TERMS.md](TERMS.md).
 
 ## Requisitos
@@ -47,6 +48,8 @@ Rellena al menos `DISCORD_TOKEN` y `DISCORD_CLIENT_ID`. El resto es opcional:
 | `YOUTUBE_COOKIES` | Ruta a un `cookies.txt` de YouTube. Si dejas `cookies.txt` en la carpeta del proyecto se usa solo |
 | `MESSAGE_CONTENT_INTENT` | `false` para arrancar sin el intent privilegiado *Message Content* |
 | `OPUS_BITRATE_KBPS`, `OPUS_FEC` | Ajustes del codificador de audio. Por defecto 96 kbps sin FEC |
+| `AUDIO_NORMALIZE` | Normalización de volumen entre canciones. Por defecto `true` |
+| `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET` | Opcionales: importar álbumes y playlists de Spotify completos |
 | `PRIVACY_URL`, `TERMS_URL`, `SUPPORT_URL` | Enlaces que se muestran en `/ayuda` |
 | `IDLE_LEAVE_MS`, `EMPTY_LEAVE_MS`, `MAX_QUEUE` | Tiempo sin música o sin gente antes de salir, y tamaño máximo de la cola |
 
@@ -96,6 +99,27 @@ Repetir: No · Volumen: 50% · Se actualiza cada 12 s
 | `/ayuda` | `Bemol ayuda` o solo `Bemol` |
 
 Todo lo que funciona con `Bemol ...` funciona también mencionando al bot: `@Bemol pon ...`. Y con clic derecho en cualquier mensaje → **Apps → Añadir a Bemol** pone el enlace o el texto que contenga.
+
+### Fuentes: Spotify, Deezer, SoundCloud, radios
+
+`/play` acepta, además de YouTube:
+
+| Enlace | Qué hace |
+| --- | --- |
+| Canción, álbum o playlist de **Spotify** | Lee los metadatos y busca cada canción en YouTube. Sin credenciales, los álbumes y playlists se leen desde la página pública de Spotify (hasta 50 canciones). Con `SPOTIFY_CLIENT_ID` y `SPOTIFY_CLIENT_SECRET` (app gratuita en developer.spotify.com) se importan completas |
+| Canción, álbum o playlist de **Deezer** | Igual, con la API pública de Deezer, sin claves |
+| Pista o lista de **SoundCloud** | Se reproduce directamente |
+| URL de audio o stream (mp3, aac, m3u8, Icecast…) | Se reproduce como radio en directo |
+
+Las listas grandes se importan **en segundo plano**: empiezan a sonar las tres primeras y el resto va entrando en la cola por lotes.
+
+**Radio**: `/radio lista` muestra emisoras seleccionadas (chill, lo-fi, jazz, soul, indie, metal…), `/radio buscar salsa` consulta el directorio comunitario [Radio Browser](https://www.radio-browser.info) por nombre o género, y `/radio poner` acepta un nombre o una URL de stream. Las radios suenan hasta que pares o pongas otra cosa.
+
+**Autoplay**: con `/config autoplay activar:true`, al acabarse la cola Bemol sigue con canciones parecidas a la última, a partir del mix que YouTube genera para cada vídeo. Con `/stop` no se activa.
+
+**Normalización de volumen**: todas las fuentes pasan por el filtro `loudnorm` de ffmpeg (-14 LUFS), así no hay saltos de volumen entre canciones. Se desactiva con `AUDIO_NORMALIZE=false`.
+
+Los enlaces de Tidal y Apple Music no están soportados.
 
 ### Biblioteca personal: playlists y favoritos
 

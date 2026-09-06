@@ -35,9 +35,10 @@ export function nowPlayingEmbed(player: GuildPlayer): EmbedBuilder {
     next ? `**Siguiente** [${escapeMd(next.title)}](${next.url}) \`${formatDuration(next.durationMs)}\`` : null,
   ].filter((line) => line !== null);
 
+  const live = song.kind === "stream";
   const embed = new EmbedBuilder()
     .setColor(paused ? PAUSED_COLOR : BEMOL_COLOR)
-    .setAuthor({ name: paused ? "⏸  En pausa" : "▶  Sonando ahora" })
+    .setAuthor({ name: paused ? "⏸  En pausa" : live ? "📻  Radio en directo" : "▶  Sonando ahora" })
     .setTitle(song.title.slice(0, 256))
     .setURL(song.url)
     .setDescription(lines.join("\n"))
@@ -53,6 +54,7 @@ export function nowPlayingEmbed(player: GuildPlayer): EmbedBuilder {
 
 export function idleEmbed(player?: GuildPlayer): EmbedBuilder {
   const minutes = Math.round(config.idleLeaveMs / 60_000);
+  void player;
   return new EmbedBuilder()
     .setColor(MUTED_COLOR)
     .setAuthor({ name: "⏹  Se acabó la cola" })
@@ -144,6 +146,7 @@ export function playlistQueuedEmbed(
   songs: Song[],
   started: boolean,
   player: GuildPlayer,
+  pendingCount = 0,
 ): EmbedBuilder {
   const first = songs[0];
   const total = songs.reduce((sum, song) => sum + (song.durationMs || 0), 0);
@@ -151,6 +154,7 @@ export function playlistQueuedEmbed(
     .slice(0, 5)
     .map((song, index) => `\`${index + 1}.\` ${escapeMd(song.title)} \`${formatDuration(song.durationMs)}\``);
   if (songs.length > 5) preview.push(`*… y ${songs.length - 5} más*`);
+  if (pendingCount > 0) preview.push(`⏳ *Importando ${pendingCount} canciones más en segundo plano; irán entrando en la cola.*`);
 
   const embed = new EmbedBuilder()
     .setColor(OK_COLOR)
@@ -277,10 +281,11 @@ export function helpEmbed(wakeWord: string): EmbedBuilder {
       {
         name: "▶  Poner música",
         value: [
-          "`/play canción` · `/add canción` — pone o añade a la cola",
+          "`/play canción o enlace` · `/add` — YouTube, Spotify, Deezer, SoundCloud, Tidal o URL de audio",
           "`/buscar salsa` — busca y elige entre varios resultados",
           `\`${w} pon ...\` · \`${w} añade ...\` · \`${w} busca ...\``,
-          "Pegar un enlace de YouTube (vídeo o playlist) también funciona",
+          "Pegar un enlace también funciona, incluidas playlists y álbumes de Spotify o Deezer",
+          "`/radio lista` · `/radio buscar salsa` · `/radio poner Groove Salad` — emisoras en directo",
         ].join("\n"),
       },
       {
@@ -315,7 +320,7 @@ export function helpEmbed(wakeWord: string): EmbedBuilder {
       {
         name: "⚙️  Servidor",
         value: [
-          "`/config` — DJs, volumen inicial, 24/7, auto-desconexión, votación para saltar, canal de música",
+          "`/config` — DJs, volumen inicial, 24/7, auto-desconexión, votación para saltar, autoplay, canal de música",
           "Clic derecho en un mensaje → **Apps → Añadir a Bemol** para poner lo que contenga",
           "Con varios oyentes, `/skip` abre una votación; los DJ saltan al instante",
         ].join("\n"),

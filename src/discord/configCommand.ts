@@ -84,6 +84,12 @@ export const configCommand = new SlashCommandBuilder()
         option.setName("canal").setDescription("Sin canal = el chat desde el que se pide la música").addChannelTypes(ChannelType.GuildText),
       ),
   )
+  .addSubcommand((sub) =>
+    sub
+      .setName("autoplay")
+      .setDescription("Al acabarse la cola, seguir con canciones parecidas a la última")
+      .addBooleanOption((option) => option.setName("activar").setDescription("Sí o no").setRequired(true)),
+  )
   .addSubcommand((sub) => sub.setName("reiniciar").setDescription("Vuelve a los valores por defecto"));
 
 export async function handleConfig(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -160,6 +166,12 @@ export async function handleConfig(interaction: ChatInputCommandInteraction): Pr
       note = channel ? `Canal de música: <#${channel.id}>.` : "Sin canal fijo: el panel va al chat desde el que se pide la música.";
       break;
     }
+    case "autoplay": {
+      const on = interaction.options.getBoolean("activar", true);
+      updateGuildSettings(guild.id, { autoplay: on });
+      note = on ? "Autoplay activado: cuando se acabe la cola sigo con canciones parecidas." : "Autoplay desactivado.";
+      break;
+    }
     case "reiniciar": {
       clearDjs(guild.id);
       updateGuildSettings(guild.id, {
@@ -171,6 +183,7 @@ export async function handleConfig(interaction: ChatInputCommandInteraction): Pr
         voteskipPercent: 50,
         voteskipMinListeners: 3,
         musicChannelId: null,
+        autoplay: false,
       });
       note = "Configuración restablecida.";
       break;
@@ -205,6 +218,7 @@ export function configEmbed(guildId: string): EmbedBuilder {
         inline: true,
       },
       { name: "💬 Canal de música", value: settings.musicChannelId ? `<#${settings.musicChannelId}>` : "El chat desde el que se pide", inline: true },
+      { name: "🔀 Autoplay", value: settings.autoplay ? "Activado" : "Desactivado", inline: true },
     )
-    .setFooter({ text: "Cambia valores con /config dj añadir/quitar · volumen · 247 · autodc · voteskip · canal · reiniciar" });
+    .setFooter({ text: "Cambia valores con /config dj · volumen · 247 · autodc · voteskip · autoplay · canal · reiniciar" });
 }

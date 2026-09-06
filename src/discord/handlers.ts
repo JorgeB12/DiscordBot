@@ -43,6 +43,7 @@ import {
   textChannelFrom,
   type MusicReply,
 } from "./playback.js";
+import { RADIO_SELECT, handleRadio, handleRadioSelect, radioCommand } from "./radio.js";
 import {
   errorEmbed,
   helpEmbed,
@@ -73,9 +74,9 @@ const pendingSearches = new Map<string, PendingSearch>();
 export const slashCommands = [
   new SlashCommandBuilder()
     .setName("play")
-    .setDescription("Reproduce o añade a la cola una canción o playlist de YouTube")
+    .setDescription("Reproduce o añade a la cola: nombre, YouTube, Spotify, Deezer, SoundCloud, Tidal o una radio")
     .addStringOption((option) =>
-      option.setName("cancion").setDescription("Nombre, artista o enlace de YouTube").setRequired(true),
+      option.setName("cancion").setDescription("Nombre, artista o enlace (YouTube, Spotify, Deezer, SoundCloud, Tidal, stream)").setRequired(true),
     ),
   new SlashCommandBuilder()
     .setName("add")
@@ -132,6 +133,7 @@ export const slashCommands = [
   new SlashCommandBuilder().setName("salir").setDescription("Bemol se sale del canal de voz"),
   new SlashCommandBuilder().setName("ayuda").setDescription("Cómo usar a Bemol"),
   configCommand,
+  radioCommand,
   ...libraryCommands,
   // Clic derecho en un mensaje → Apps → "Añadir a Bemol"
   new ContextMenuCommandBuilder().setName("Añadir a Bemol").setType(ApplicationCommandType.Message),
@@ -158,6 +160,7 @@ export async function handleInteraction(interaction: Interaction): Promise<void>
   }
   if (interaction.isChatInputCommand()) {
     if (LIBRARY_COMMAND_NAMES.has(interaction.commandName)) await handleLibrarySlash(interaction);
+    else if (interaction.commandName === "radio") await handleRadio(interaction);
     else await handleSlash(interaction);
     return;
   }
@@ -174,6 +177,7 @@ export async function handleInteraction(interaction: Interaction): Promise<void>
   }
   if (interaction.isStringSelectMenu()) {
     if (interaction.customId === CONTROL_IDS.removeSelect) await handleRemoveSelect(interaction);
+    else if (interaction.customId.startsWith(RADIO_SELECT)) await handleRadioSelect(interaction);
     return;
   }
   if (interaction.isModalSubmit() && interaction.customId === CONTROL_IDS.addModal) {
