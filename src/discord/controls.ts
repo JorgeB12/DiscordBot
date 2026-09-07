@@ -38,6 +38,11 @@ export const LIB_IDS = {
   saveSong: "lib:save:song:",
   /** + id de canción */
   searchPlay: "search:play:",
+  /** Elección de alcance al guardar desde el panel: la que suena o toda la cola. */
+  saveScopeSong: "lib:save:scope:song",
+  saveScopeQueue: "lib:save:scope:queue",
+  /** Modal de "nueva playlist" para el conjunto que el usuario tiene pendiente de guardar. */
+  newPlaylistModal: "lib:newpl",
   queueSave: "lib:queue:save",
   queueSaveModal: "lib:queue:savemodal",
   queueSaveName: "lib:queue:savename",

@@ -60,6 +60,42 @@ export function recallSong(id: string): LibrarySong | null {
   return null;
 }
 
+/* ───────────── Guardado en curso: qué eligió guardar cada usuario ───────────── */
+
+/** Marcador que usan los componentes cuando el conjunto va en `pendingSaves`. */
+const PENDING = "@pending";
+const SAVE_TTL_MS = 5 * 60_000;
+
+type PendingSave = { songs: LibrarySong[]; label: string; timer: ReturnType<typeof setTimeout> };
+const pendingSaves = new Map<string, PendingSave>();
+
+const saveKey = (member: GuildMember) => `${member.guild.id}:${member.id}`;
+
+function rememberSave(member: GuildMember, songs: LibrarySong[], label: string): void {
+  const key = saveKey(member);
+  const previous = pendingSaves.get(key);
+  if (previous) clearTimeout(previous.timer);
+  const timer = setTimeout(() => pendingSaves.delete(key), SAVE_TTL_MS);
+  timer.unref();
+  pendingSaves.set(key, { songs, label, timer });
+}
+
+/** Lo que toca guardar: el conjunto pendiente, o una canción suelta de la búsqueda. */
+function songsToSave(member: GuildMember, token: string): { songs: LibrarySong[]; label: string } | null {
+  if (token === PENDING) {
+    const pending = pendingSaves.get(saveKey(member));
+    return pending ? { songs: pending.songs, label: pending.label } : null;
+  }
+  const song = recallSong(token);
+  return song ? { songs: [song], label: `**${song.title}**` } : null;
+}
+
+/** Canción actual más el resto de la cola, como foto del momento del clic. */
+function queueSnapshot(member: GuildMember): LibrarySong[] {
+  const session = getVoiceSession(member.guild.id);
+  return [...(session?.current ? [session.current] : []), ...(session?.queue ?? [])].map(toLibrarySong);
+}
+
 /* ───────────────────────────── Comandos ───────────────────────────── */
 
 const nameOption = (description: string) => (option: import("discord.js").SlashCommandStringOption) =>
@@ -349,9 +385,9 @@ export async function handleLibraryComponent(
     return true;
   }
 
-  // 📋 en el panel, o 💾 n en la búsqueda → menú para elegir dónde guardar
-  if ((id === LIB_IDS.savePanel || id.startsWith(LIB_IDS.saveSong)) && interaction.isButton()) {
-    const song = id === LIB_IDS.savePanel ? currentSong(member) : recallSong(id.slice(LIB_IDS.saveSong.length));
+  // 💾 n en la búsqueda → una canción suelta
+  if (id.startsWith(LIB_IDS.saveSong) && interaction.isButton()) {
+    const song = recallSong(id.slice(LIB_IDS.saveSong.length));
     if (!song) {
       await interaction.reply({ content: "No encuentro esa canción; vuelve a buscarla o a ponerla.", ephemeral: true });
       return true;
@@ -365,19 +401,65 @@ export async function handleLibraryComponent(
     return true;
   }
 
+  // 📋 en el panel: con cola, preguntamos si guardamos solo la que suena o todo
+  if (id === LIB_IDS.savePanel && interaction.isButton()) {
+    const queue = queueSnapshot(member);
+    if (!queue.length) {
+      await interaction.reply({ content: "No hay nada que guardar ahora mismo.", ephemeral: true });
+      return true;
+    }
+    rememberSongs(queue);
+
+    if (queue.length === 1) {
+      const song = queue[0]!;
+      await interaction.reply({
+        content: `¿Dónde guardo **${song.title}**?`,
+        components: [saveSelect(member.id, song.id)],
+        ephemeral: true,
+      });
+      return true;
+    }
+
+    rememberSave(member, queue, `las ${queue.length} canciones de la cola`);
+    const others = queue.length - 1;
+    await interaction.reply({
+      content: `Suena **${queue[0]!.title}** y ${others === 1 ? "hay 1 canción más" : `hay ${others} canciones más`} en la cola. ¿Qué guardo?`,
+      components: [scopeButtons(queue.length)],
+      ephemeral: true,
+    });
+    return true;
+  }
+
+  // Elección de alcance: solo la que suena o toda la cola
+  if ((id === LIB_IDS.saveScopeSong || id === LIB_IDS.saveScopeQueue) && interaction.isButton()) {
+    const pending = pendingSaves.get(saveKey(member));
+    if (!pending) {
+      await interaction.update({ content: "Esa elección ya caducó; vuelve a pulsar 📋.", components: [] });
+      return true;
+    }
+    if (id === LIB_IDS.saveScopeSong) {
+      const song = pending.songs[0]!;
+      rememberSave(member, [song], `**${song.title}**`);
+    }
+    const target = pendingSaves.get(saveKey(member))!;
+    await interaction.update({ content: `¿Dónde guardo ${target.label}?`, components: [saveSelect(member.id, PENDING)] });
+    return true;
+  }
+
   if (id.startsWith(LIB_IDS.saveSelect) && interaction.isStringSelectMenu()) {
-    const song = recallSong(id.slice(LIB_IDS.saveSelect.length));
+    const target = songsToSave(member, id.slice(LIB_IDS.saveSelect.length));
     const choice = interaction.values[0] ?? "";
-    if (!song) {
-      await interaction.update({ content: "Esa canción ya caducó de mi memoria; vuelve a buscarla.", components: [] });
+    if (!target) {
+      await interaction.update({ content: "Esa elección ya caducó; vuelve a intentarlo.", components: [] });
       return true;
     }
     if (choice === "fav") {
-      await interaction.update({ content: toggleFavorite(member.id, song, true), components: [] });
+      await interaction.update({ content: saveToFavorites(member.id, target.songs), components: [] });
       return true;
     }
     if (choice === "new") {
-      await interaction.showModal(newPlaylistModal(song.id));
+      rememberSave(member, target.songs, target.label);
+      await interaction.showModal(newPlaylistModal());
       return true;
     }
     const playlist = getPlaylist(Number(choice.replace("pl:", "")));
@@ -385,11 +467,8 @@ export async function handleLibraryComponent(
       await interaction.update({ content: "Esa playlist ya no existe.", components: [] });
       return true;
     }
-    const { added } = addTracks(playlist.id, [song]);
-    await interaction.update({
-      content: added ? `✅ **${song.title}** guardada en **${playlist.name}**.` : `**${song.title}** ya estaba en **${playlist.name}**.`,
-      components: [],
-    });
+    const { added, skipped } = addTracks(playlist.id, target.songs);
+    await interaction.update({ content: savedMessage(added, skipped, target, playlist.name), components: [] });
     return true;
   }
 
@@ -400,7 +479,10 @@ export async function handleLibraryComponent(
     if (id === LIB_IDS.queueSaveModal) {
       const session = getVoiceSession(member.guild.id);
       songs = [...(session?.current ? [session.current] : []), ...(session?.queue ?? [])].map(toLibrarySong);
+    } else if (id === LIB_IDS.newPlaylistModal) {
+      songs = pendingSaves.get(saveKey(member))?.songs ?? [];
     } else if (id.startsWith("lib:newpl:")) {
+      // Menús abiertos antes de una actualización del bot.
       const song = recallSong(id.slice("lib:newpl:".length));
       if (song) songs = [song];
     }
@@ -526,10 +608,45 @@ function toggleFavorite(userId: string, song: LibrarySong, addOnly = false): str
   }
 }
 
-function saveSelect(userId: string, songId: string): ActionRowBuilder<StringSelectMenuBuilder> {
+function saveToFavorites(userId: string, songs: LibrarySong[]): string {
+  if (songs.length === 1) return toggleFavorite(userId, songs[0]!, true);
+  let added = 0;
+  let skipped = 0;
+  for (const song of songs) {
+    try {
+      if (addFavorite(userId, song)) added++;
+      else skipped++;
+    } catch (error) {
+      const why = error instanceof Error ? error.message : "No pude guardarlas.";
+      return added ? `❤️ Guardé ${added} en favoritas, pero paré: ${why}` : why;
+    }
+  }
+  return added
+    ? `❤️ ${added} ${added === 1 ? "canción guardada" : "canciones guardadas"} en tus favoritas.${skipped ? ` (${skipped} ya estaban)` : ""}`
+    : "Todas esas canciones ya estaban en tus favoritas.";
+}
+
+function savedMessage(added: number, skipped: number, target: { songs: LibrarySong[]; label: string }, playlistName: string): string {
+  if (!added) {
+    return target.songs.length === 1
+      ? `${target.label} ya estaba en **${playlistName}**.`
+      : `Nada nuevo: ya estaban en **${playlistName}** o la playlist está llena.`;
+  }
+  const what = target.songs.length === 1 ? target.label : `${added} ${added === 1 ? "canción" : "canciones"}`;
+  return `✅ ${what} ${added === 1 ? "guardada" : "guardadas"} en **${playlistName}**.${skipped ? ` (${skipped} ya estaban o no cabían)` : ""}`;
+}
+
+function scopeButtons(total: number): ActionRowBuilder<ButtonBuilder> {
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId(LIB_IDS.saveScopeSong).setEmoji("🎵").setLabel("Solo la que suena").setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId(LIB_IDS.saveScopeQueue).setEmoji("📃").setLabel(`Toda la cola (${total})`).setStyle(ButtonStyle.Secondary),
+  );
+}
+
+function saveSelect(userId: string, token: string): ActionRowBuilder<StringSelectMenuBuilder> {
   const playlists = listPlaylists(userId).slice(0, 23);
   const menu = new StringSelectMenuBuilder()
-    .setCustomId(`${LIB_IDS.saveSelect}${songId.slice(0, 60)}`)
+    .setCustomId(`${LIB_IDS.saveSelect}${token.slice(0, 60)}`)
     .setPlaceholder("Elige favoritas o una playlist")
     .addOptions(
       new StringSelectMenuOptionBuilder().setLabel("Favoritas").setEmoji("❤️").setValue("fav"),
@@ -545,9 +662,9 @@ function saveSelect(userId: string, songId: string): ActionRowBuilder<StringSele
   return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu);
 }
 
-function newPlaylistModal(songId: string): ModalBuilder {
+function newPlaylistModal(): ModalBuilder {
   return new ModalBuilder()
-    .setCustomId(`lib:newpl:${songId.slice(0, 60)}`)
+    .setCustomId(LIB_IDS.newPlaylistModal)
     .setTitle("Nueva playlist")
     .addComponents(
       new ActionRowBuilder<TextInputBuilder>().addComponents(

@@ -136,7 +136,9 @@ Cada usuario tiene su biblioteca, ligada a su cuenta, no al servidor: funciona e
 | `/like`, botón **❤️ Me gusta** | Guarda o quita de favoritas la canción que suena |
 | `/favoritos ver`, `/favoritos reproducir [mezclar]`, `/favoritos quitar` | Tus favoritas (hasta 500) |
 
-Los nombres de playlist se autocompletan al escribir. Además, el botón **📋 A playlist** del panel, los botones **💾** de `/buscar` y **Guardar como playlist** en la vista de cola abren un menú para elegir favoritas, una playlist existente o crear una nueva.
+Los nombres de playlist se autocompletan al escribir.
+
+El botón **📋 A playlist** del panel guarda sin escribir comandos. Si solo suena una canción, va directo al menú de destino. Si además hay cola, pregunta antes si guardas **🎵 Solo la que suena** o **📃 Toda la cola**, y con eso puedes meter un álbum entero de Spotify en una playlist de una vez. El destino puede ser tus favoritas, una playlist que ya tengas o una nueva. Los botones **💾** de `/buscar` y **Guardar como playlist** de la vista de cola llevan al mismo menú.
 
 `/buscar` muestra cinco resultados con dos filas de botones: **▶ 1–5** para ponerlos y **💾 1–5** para guardarlos sin reproducir.
 

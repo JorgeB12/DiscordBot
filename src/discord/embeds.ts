@@ -314,7 +314,8 @@ export function helpEmbed(wakeWord: string): EmbedBuilder {
         value: [
           "`/playlist crear` · `añadir` · `ver` · `reproducir` · `quitar` · `eliminar` · `compartir` · `lista`",
           "`/like` y el botón **❤️ Me gusta** del panel guardan en favoritas · `/favoritos ver` · `reproducir`",
-          "Botón **📋 A playlist** del panel, **💾** en `/buscar` y **Guardar como playlist** en la cola",
+          "Botón **📋 A playlist** del panel: guarda la que suena o toda la cola (un álbum entero, por ejemplo)",
+          "También **💾** en `/buscar` y **Guardar como playlist** en la vista de cola",
         ].join("\n"),
       },
       {
