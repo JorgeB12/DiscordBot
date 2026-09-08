@@ -88,8 +88,28 @@ async function resolveSpotify(url: string): Promise<ExternalList> {
   if (!match) throw new Error("No reconozco ese enlace de Spotify (vale un track, un álbum o una playlist).");
   const [, type, id] = match;
 
-  const token = await spotifyAccessToken();
-  if (!token) return resolveSpotifyEmbed(type as "track" | "album" | "playlist", id!);
+  const kind = type as "track" | "album" | "playlist";
+
+  // Con credenciales usamos la API oficial, que trae las listas completas. Si
+  // falla (la Web API exige que la cuenta dueña de la app tenga Premium, y
+  // puede caducar o cambiar), seguimos con la página pública.
+  let token: string | null = null;
+  try {
+    token = await spotifyAccessToken();
+  } catch (error) {
+    console.warn("[spotify] no pude pedir el token:", error instanceof Error ? error.message : error);
+  }
+  if (token) {
+    try {
+      return await resolveSpotifyApi(kind, id!, token);
+    } catch (error) {
+      console.warn("[spotify] la API falló, uso la página pública:", error instanceof Error ? error.message : error);
+    }
+  }
+  return resolveSpotifyEmbed(kind, id!);
+}
+
+async function resolveSpotifyApi(type: "track" | "album" | "playlist", id: string, token: string): Promise<ExternalList> {
   const headers = { Authorization: `Bearer ${token}` };
   const api = "https://api.spotify.com/v1";
 

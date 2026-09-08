@@ -49,7 +49,7 @@ Rellena al menos `DISCORD_TOKEN` y `DISCORD_CLIENT_ID`. El resto es opcional:
 | `MESSAGE_CONTENT_INTENT` | `false` para arrancar sin el intent privilegiado *Message Content* |
 | `OPUS_BITRATE_KBPS`, `OPUS_FEC` | Ajustes del codificador de audio. Por defecto 96 kbps sin FEC |
 | `AUDIO_NORMALIZE` | Normalización de volumen entre canciones. Por defecto `true` |
-| `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET` | Opcionales: importar álbumes y playlists de Spotify completos |
+| `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET` | Opcionales: listas de Spotify completas. Requieren una cuenta Premium; sin ellas se usa la página pública |
 | `PRIVACY_URL`, `TERMS_URL`, `SUPPORT_URL` | Enlaces que se muestran en `/ayuda` |
 | `IDLE_LEAVE_MS`, `EMPTY_LEAVE_MS`, `MAX_QUEUE` | Tiempo sin música o sin gente antes de salir, y tamaño máximo de la cola |
 
@@ -107,7 +107,7 @@ Todo lo que funciona con `Bemol ...` funciona también mencionando al bot: `@Bem
 
 | Enlace | Qué hace |
 | --- | --- |
-| Canción, álbum o playlist de **Spotify** | Lee los metadatos y busca cada canción en YouTube. Sin credenciales, los álbumes y playlists se leen desde la página pública de Spotify (hasta 50 canciones). Con `SPOTIFY_CLIENT_ID` y `SPOTIFY_CLIENT_SECRET` (app gratuita en developer.spotify.com) se importan completas |
+| Canción, álbum o playlist de **Spotify** | Lee los metadatos y busca cada canción en YouTube. Por defecto usa la página pública, que devuelve hasta 50 canciones por lista. Con `SPOTIFY_CLIENT_ID` y `SPOTIFY_CLIENT_SECRET` importa las listas completas, pero **la Web API de Spotify exige que la cuenta dueña de la app tenga Premium**; si responde 403, Bemol vuelve solo a la página pública |
 | Canción, álbum o playlist de **Deezer** | Igual, con la API pública de Deezer, sin claves |
 | Pista o lista de **SoundCloud** | Se reproduce directamente |
 | URL de audio o stream (mp3, aac, m3u8, Icecast…) | Se reproduce como radio en directo |
