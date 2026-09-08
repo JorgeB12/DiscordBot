@@ -78,7 +78,8 @@ Siguiente Moscow Mule 4:05
 Repetir: No · Volumen: 50% · Se actualiza cada 12 s
 
 [⏮] [⏸ Pausa] [⏭ Saltar] [⏹ Parar]
-[🔀 Mezclar] [🔁 Repetir] [📃 Cola] [➕ Añadir]
+[🔀 Mezclar] [🔁 Repetir] [📃 Cola]
+[➕ Añadir] [❤️ Me gusta] [📋 Playlist]
 ```
 
 - El panel aparece en el chat desde el que pediste la música y se mueve al final del canal cuando empieza una canción, para que no se pierda entre la conversación.

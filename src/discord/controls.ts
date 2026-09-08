@@ -57,11 +57,13 @@ export const LOOP_LABEL: Record<LoopMode, string> = {
 };
 
 /**
- * Panel de reproducción: dos filas de cuatro botones, que caben en una línea
- * incluso en ventanas estrechas o en móvil.
+ * Panel de reproducción, en tres filas que caben en una línea cada una incluso
+ * en ventanas estrechas o en móvil. Las etiquetas se mantienen cortas y de
+ * longitud fija: si crecen, Discord parte la fila y algún botón queda huérfano.
  *
  *  ⏮ · ⏸ Pausa / ▶ Seguir · ⏭ Saltar · ⏹ Parar
- *  🔀 Mezclar · 🔁 Repetir · 📃 Cola · ➕ Añadir
+ *  🔀 Mezclar · 🔁 Repetir · 📃 Cola
+ *  ➕ Añadir · ❤️ Me gusta · 📋 Playlist
  */
 export function playerControls(options: {
   paused: boolean;
@@ -74,10 +76,12 @@ export function playerControls(options: {
     .setLabel(options.paused ? "Seguir" : "Pausa")
     .setStyle(options.paused ? ButtonStyle.Success : ButtonStyle.Primary);
 
+  // El modo de repetición se ve en el emoji y el color; el texto no cambia para
+  // que el botón no cambie de ancho al pulsarlo (el pie del panel lo detalla).
   const loop = new ButtonBuilder()
     .setCustomId(CONTROL_IDS.loop)
     .setEmoji(options.loop === "track" ? "🔂" : "🔁")
-    .setLabel(options.loop === "off" ? "Repetir" : options.loop === "track" ? "Repetir 1" : "Repetir todo")
+    .setLabel("Repetir")
     .setStyle(options.loop === "off" ? ButtonStyle.Secondary : ButtonStyle.Primary);
 
   const transport = new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -99,7 +103,7 @@ export function playerControls(options: {
       .setStyle(ButtonStyle.Danger),
   );
 
-  const extras = new ActionRowBuilder<ButtonBuilder>().addComponents(
+  const queueRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(CONTROL_IDS.shuffle)
       .setEmoji("🔀")
@@ -107,16 +111,16 @@ export function playerControls(options: {
       .setStyle(ButtonStyle.Secondary),
     loop,
     queueButton(),
-    addButton(),
   );
 
-  // Biblioteca personal: favoritos y guardar en playlist (van ligados a quien pulsa).
+  // Añadir y guardar: la biblioteca va ligada a quien pulsa.
   const library = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    addButton(),
     new ButtonBuilder().setCustomId(LIB_IDS.favToggle).setEmoji("❤️").setLabel("Me gusta").setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId(LIB_IDS.savePanel).setEmoji("📋").setLabel("A playlist").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(LIB_IDS.savePanel).setEmoji("📋").setLabel("Playlist").setStyle(ButtonStyle.Secondary),
   );
 
-  return [transport, extras, library];
+  return [transport, queueRow, library];
 }
 
 /** Botones cuando la cola se ha acabado: solo lo que tiene sentido hacer. */
@@ -166,9 +170,10 @@ export function queueControls(
 ): (ActionRowBuilder<ButtonBuilder> | ActionRowBuilder<StringSelectMenuBuilder>)[] {
   const rows: (ActionRowBuilder<ButtonBuilder> | ActionRowBuilder<StringSelectMenuBuilder>)[] = [];
 
-  const buttons = new ActionRowBuilder<ButtonBuilder>();
+  // Paginación en su propia fila: junto a las acciones no cabía y se partía.
   if (pages > 1) {
-    buttons.addComponents(
+    rows.push(
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder()
         .setCustomId(`${QUEUE_PAGE_PREFIX}${page - 1}`)
         .setEmoji("◀️")
@@ -186,21 +191,24 @@ export function queueControls(
         .setEmoji("▶️")
         .setStyle(ButtonStyle.Secondary)
         .setDisabled(page >= pages),
+      ),
     );
   }
-  buttons.addComponents(
-    new ButtonBuilder()
-      .setCustomId(`${CONTROL_IDS.queueRefresh}:${page}`)
-      .setEmoji("🔄")
-      .setLabel("Actualizar")
-      .setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder()
-      .setCustomId(LIB_IDS.queueSave)
-      .setEmoji("💾")
-      .setLabel("Guardar como playlist")
-      .setStyle(ButtonStyle.Secondary),
+
+  rows.push(
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`${CONTROL_IDS.queueRefresh}:${page}`)
+        .setEmoji("🔄")
+        .setLabel("Actualizar")
+        .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
+        .setCustomId(LIB_IDS.queueSave)
+        .setEmoji("💾")
+        .setLabel("Guardar cola")
+        .setStyle(ButtonStyle.Secondary),
+    ),
   );
-  rows.push(buttons);
 
   if (pageSongs.length) {
     const menu = new StringSelectMenuBuilder()
