@@ -29,6 +29,7 @@ import { musicEmoji, setVoiceStatus, statusText } from "../discord/voiceStatus.j
 import {
   createTrackStream,
   resolveTracks,
+  streamSong,
   type Requester,
   type Song,
   type TrackStream,
@@ -52,6 +53,11 @@ export type PlayResult = {
 };
 
 export type LeaveReason = "idle" | "empty" | "manual" | "moved" | "disconnected" | "shutdown";
+
+/** Marca de la emisora que suena sola en modo 24/7, para distinguirla de una pedida a mano. */
+const FALLBACK_MARK = "24/7";
+/** Si la emisora de fondo se corta antes de esto, no la reintentamos en bucle. */
+const FALLBACK_RETRY_MS = 30_000;
 
 const PANEL_REFRESH_MS = 12_000;
 const ADOPTION_GRACE_MS = 10_000;
@@ -78,6 +84,8 @@ export class GuildPlayer {
   private loopMode: LoopMode = "off";
   /** Votos para saltar la canción actual (ids de usuario). Se vacía al cambiar de canción. */
   private skipVotes = new Set<string>();
+  /** Cuándo arrancó por última vez la emisora de fondo (para no reintentarla en bucle). */
+  private lastFallbackAt = 0;
 
   current: Song | null = null;
   readonly queue: Song[] = [];
@@ -248,6 +256,11 @@ export class GuildPlayer {
     return this.player.state.resource.playbackDuration;
   }
 
+  /** ¿Lo que suena es la emisora de fondo del modo 24/7? */
+  get playingFallbackRadio(): boolean {
+    return this.current?.kind === "stream" && this.current.via === FALLBACK_MARK;
+  }
+
   get queueDurationMs(): number {
     return this.queue.reduce((sum, song) => sum + (song.durationMs || 0), 0);
   }
@@ -352,6 +365,13 @@ export class GuildPlayer {
     const alreadyActive = Boolean(this.current) || this.playing;
     this.queue.push(...accepted);
     this.clearIdle();
+
+    // La emisora de fondo del modo 24/7 no tiene fin: si alguien pide música, le cede el paso.
+    if (alreadyActive && this.playingFallbackRadio) {
+      this.skipRequested = true;
+      this.player.stop(true);
+      return { started: true, songs: accepted, playlistTitle };
+    }
 
     if (!alreadyActive) {
       await this.playNext();
@@ -668,6 +688,7 @@ export class GuildPlayer {
         }
       }
     }
+    if (!this.destroyed && !this.stopRequested && (await this.playFallbackRadio())) return;
     this.stopRequested = false;
 
     this.current = null;
@@ -675,6 +696,27 @@ export class GuildPlayer {
     this.armIdle();
     void this.syncVoiceStatus();
     await this.refreshPanel();
+  }
+
+  /**
+   * Arranca la emisora de fondo del modo 24/7, si el servidor tiene una puesta.
+   * Devuelve si empezó a sonar.
+   */
+  async playFallbackRadio(): Promise<boolean> {
+    const settings = getGuildSettings(this.guildId);
+    if (!settings.stay247 || !settings.radio247Url || this.destroyed || this.queue.length) return false;
+    // Si la emisora acaba de cortarse, no insistimos: dejaríamos el bot en bucle.
+    if (Date.now() - this.lastFallbackAt < FALLBACK_RETRY_MS) {
+      console.warn("[radio] la emisora de fondo se cortó enseguida; la dejo estar");
+      return false;
+    }
+    this.lastFallbackAt = Date.now();
+    this.queue.push(
+      streamSong(settings.radio247Url, { id: "", name: "24/7" }, settings.radio247Name ?? undefined, { via: FALLBACK_MARK }),
+    );
+    console.log(`[radio] 24/7: pongo ${settings.radio247Name ?? settings.radio247Url}`);
+    await this.playNext();
+    return true;
   }
 
   private armIdle(): void {

@@ -31,6 +31,7 @@ export function nowPlayingEmbed(player: GuildPlayer): EmbedBuilder {
     progressBar(position, song.durationMs),
     "",
     `**Pedida por** ${mention(song.requestedBy)}`,
+    sourceLine(song),
     `**En cola** ${queueSummary(player)}`,
     next ? `**Siguiente** [${escapeMd(next.title)}](${next.url}) \`${formatDuration(next.durationMs)}\`` : null,
   ].filter((line) => line !== null);
@@ -286,6 +287,7 @@ export function helpEmbed(wakeWord: string): EmbedBuilder {
           `\`${w} pon ...\` · \`${w} añade ...\` · \`${w} busca ...\``,
           "Pegar un enlace también funciona, incluidas playlists y álbumes de Spotify o Deezer",
           "`/radio lista` · `/radio buscar salsa` · `/radio poner Groove Salad` — emisoras en directo",
+          "`/radio 247 emisora:...` — deja una emisora de fondo cuando no hay cola",
         ].join("\n"),
       },
       {
@@ -359,6 +361,16 @@ export function errorEmbed(text: string): EmbedBuilder {
 }
 
 /* ──────────────────────────────── Helpers ──────────────────────────────── */
+
+/**
+ * De dónde sale el audio, solo cuando no es lo evidente: SoundCloud, o una
+ * canción que se pidió desde otra plataforma y se encontró en YouTube.
+ */
+function sourceLine(song: Song): string | null {
+  if (song.kind === "stream") return null;
+  if (song.kind === "soundcloud") return "**Fuente** SoundCloud";
+  return song.via ? `**Fuente** YouTube · vía ${escapeMd(song.via)}` : null;
+}
 
 function queueSummary(player: GuildPlayer): string {
   const n = player.queue.length;

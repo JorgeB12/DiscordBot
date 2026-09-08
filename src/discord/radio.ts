@@ -1,4 +1,5 @@
 import {
+  MessageFlags,
   ActionRowBuilder,
   EmbedBuilder,
   SlashCommandBuilder,
@@ -7,9 +8,12 @@ import {
   type ChatInputCommandInteraction,
   type StringSelectMenuInteraction,
 } from "discord.js";
+import { getVoiceSession } from "../audio/registry.js";
 import { streamSong } from "../audio/musicPlayer.js";
+import { updateGuildSettings } from "../db/guildSettings.js";
+import { can, denialMessage } from "./permissions.js";
 import { CURATED_STATIONS, findCurated, searchStations, type Station } from "../audio/radio.js";
-import { BEMOL_COLOR, errorEmbed } from "./embeds.js";
+import { BEMOL_COLOR, errorEmbed, okEmbed } from "./embeds.js";
 import { deliver, isGuildMember, playSongs, textChannelFrom } from "./playback.js";
 
 /**
@@ -31,6 +35,14 @@ export const radioCommand = new SlashCommandBuilder()
   )
   .addSubcommand((sub) =>
     sub
+      .setName("247")
+      .setDescription("Emisora que suena sola cuando no hay cola (modo 24/7)")
+      .addStringOption((option) =>
+        option.setName("emisora").setDescription("Nombre o URL; déjalo vacío para quitar la emisora de fondo").setMaxLength(300),
+      ),
+  )
+  .addSubcommand((sub) =>
+    sub
       .setName("poner")
       .setDescription("Pone una emisora por nombre (de la lista) o por URL de stream")
       .addStringOption((option) => option.setName("emisora").setDescription("Nombre o URL").setRequired(true).setMaxLength(300)),
@@ -40,7 +52,7 @@ const pendingStations = new Map<string, { stations: Station[]; timer: ReturnType
 
 export async function handleRadio(interaction: ChatInputCommandInteraction): Promise<void> {
   if (!interaction.guild || !isGuildMember(interaction.member)) {
-    await interaction.reply({ content: "Usa este comando en un servidor.", ephemeral: true });
+    await interaction.reply({ content: "Usa este comando en un servidor.", flags: MessageFlags.Ephemeral });
     return;
   }
   const member = interaction.member;
@@ -71,19 +83,58 @@ export async function handleRadio(interaction: ChatInputCommandInteraction): Pro
     return;
   }
 
-  const wanted = interaction.options.getString("emisora", true).trim();
-  let station: Station | null = findCurated(wanted);
-  if (!station && /^https?:\/\//i.test(wanted)) station = { name: hostOf(wanted), url: wanted, genre: "Stream", emoji: "📻" };
-  if (!station) {
-    const found = await searchStations(wanted, 1).catch(() => []);
-    station = found[0] ?? null;
+  if (sub === "247") {
+    if (!can(member, "config")) {
+      await interaction.reply({ content: denialMessage("config", interaction.guild.id), flags: MessageFlags.Ephemeral });
+      return;
+    }
+    const wanted = interaction.options.getString("emisora");
+    if (!wanted) {
+      updateGuildSettings(interaction.guild.id, { radio247Name: null, radio247Url: null });
+      await interaction.reply({
+        content: "✅ Quité la emisora de fondo. El modo 24/7 se sigue configurando con `/config 247`.",
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+    await interaction.deferReply();
+    const station = await findStation(wanted);
+    if (!station) {
+      await interaction.editReply({ embeds: [errorEmbed(`No encontré la emisora **${wanted}**. Mira \`/radio lista\` o usa \`/radio buscar\`.`)] });
+      return;
+    }
+    updateGuildSettings(interaction.guild.id, { stay247: true, radio247Name: station.name, radio247Url: station.url });
+    const session = getVoiceSession(interaction.guild.id);
+    const started = session && !session.current ? await session.playFallbackRadio() : false;
+    await interaction.editReply({
+      embeds: [
+        okEmbed(
+          `Modo 24/7 con **${station.name}** de fondo. ${started ? "Ya está sonando." : "Sonará cuando se acabe la cola."} ` +
+            "En cuanto alguien pida una canción, la emisora se aparta.",
+        ),
+      ],
+    });
+    return;
   }
+
+  const wanted = interaction.options.getString("emisora", true).trim();
+  const station = await findStation(wanted);
   if (!station) {
-    await interaction.reply({ content: `No encontré la emisora **${wanted}**. Mira \`/radio lista\` o usa \`/radio buscar\`.`, ephemeral: true });
+    await interaction.reply({ content: `No encontré la emisora **${wanted}**. Mira \`/radio lista\` o usa \`/radio buscar\`.`, flags: MessageFlags.Ephemeral });
     return;
   }
   await interaction.deferReply();
   await deliver(await playStation(member, station, interaction), (payload) => interaction.editReply(payload));
+}
+
+/** Busca una emisora por nombre de la lista, URL de stream o en el directorio. */
+async function findStation(wanted: string): Promise<Station | null> {
+  const clean = wanted.trim();
+  const curated = findCurated(clean);
+  if (curated) return curated;
+  if (/^https?:\/\//i.test(clean)) return { name: hostOf(clean), url: clean, genre: "Stream", emoji: "📻" };
+  const found = await searchStations(clean, 1).catch(() => []);
+  return found[0] ?? null;
 }
 
 export async function handleRadioSelect(interaction: StringSelectMenuInteraction): Promise<void> {
@@ -91,7 +142,7 @@ export async function handleRadioSelect(interaction: StringSelectMenuInteraction
   const index = Number(interaction.values[0]);
   const station = pendingStations.get(interaction.guild.id)?.stations[index];
   if (!station) {
-    await interaction.reply({ content: "Esa lista caducó. Vuelve a usar `/radio`.", ephemeral: true });
+    await interaction.reply({ content: "Esa lista caducó. Vuelve a usar `/radio`.", flags: MessageFlags.Ephemeral });
     return;
   }
   await interaction.deferReply();

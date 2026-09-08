@@ -1,4 +1,5 @@
 import {
+  MessageFlags,
   ApplicationCommandType,
   ContextMenuCommandBuilder,
   REST,
@@ -189,7 +190,7 @@ export async function handleInteraction(interaction: Interaction): Promise<void>
 
 async function handleSlash(interaction: ChatInputCommandInteraction): Promise<void> {
   if (!interaction.guild || !isGuildMember(interaction.member)) {
-    await interaction.reply({ content: "Usa este comando en un servidor.", ephemeral: true });
+    await interaction.reply({ content: "Usa este comando en un servidor.", flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -198,13 +199,13 @@ async function handleSlash(interaction: ChatInputCommandInteraction): Promise<vo
   const textChannel = textChannelFrom(interaction);
 
   if (name === "ayuda") {
-    await interaction.reply({ embeds: [helpEmbed(config.wakeWord)], ephemeral: true });
+    await interaction.reply({ embeds: [helpEmbed(config.wakeWord)], flags: MessageFlags.Ephemeral });
     return;
   }
 
   if (name === "config") {
     if (!can(member, "config")) {
-      await interaction.reply({ content: denialMessage("config", interaction.guild.id), ephemeral: true });
+      await interaction.reply({ content: denialMessage("config", interaction.guild.id), flags: MessageFlags.Ephemeral });
       return;
     }
     await handleConfig(interaction);
@@ -214,7 +215,7 @@ async function handleSlash(interaction: ChatInputCommandInteraction): Promise<vo
   if (name === "unirme") {
     const channel = member.voice.channel;
     if (!channel) {
-      await interaction.reply({ content: "Métete a un canal de voz primero y vuelve a usar `/unirme`.", ephemeral: true });
+      await interaction.reply({ content: "Métete a un canal de voz primero y vuelve a usar `/unirme`.", flags: MessageFlags.Ephemeral });
       return;
     }
     await joinChannel(channel, textChannel);
@@ -227,11 +228,11 @@ async function handleSlash(interaction: ChatInputCommandInteraction): Promise<vo
   if (name === "salir") {
     const session = getVoiceSession(interaction.guild.id);
     if (!session) {
-      await interaction.reply({ content: "No estoy en ningún canal de voz.", ephemeral: true });
+      await interaction.reply({ content: "No estoy en ningún canal de voz.", flags: MessageFlags.Ephemeral });
       return;
     }
     if (!can(member, "manage", session.voiceChannel)) {
-      await interaction.reply({ content: denialMessage("manage", interaction.guild.id), ephemeral: true });
+      await interaction.reply({ content: denialMessage("manage", interaction.guild.id), flags: MessageFlags.Ephemeral });
       return;
     }
     const channelName = session.channelName;
@@ -259,7 +260,7 @@ async function handleSlash(interaction: ChatInputCommandInteraction): Promise<vo
   const session = getVoiceSession(interaction.guild.id);
   if (name === "cola") {
     if (!session?.current && !session?.queue.length) {
-      await interaction.reply({ content: "La cola está vacía. Pon algo con `/play`.", ephemeral: true });
+      await interaction.reply({ content: "La cola está vacía. Pon algo con `/play`.", flags: MessageFlags.Ephemeral });
       return;
     }
     const page = interaction.options.getInteger("pagina") ?? 1;
@@ -269,7 +270,7 @@ async function handleSlash(interaction: ChatInputCommandInteraction): Promise<vo
 
   if (name === "sonando") {
     if (!session?.current) {
-      await interaction.reply({ content: "No hay nada sonando. Pon algo con `/play`.", ephemeral: true });
+      await interaction.reply({ content: "No hay nada sonando. Pon algo con `/play`.", flags: MessageFlags.Ephemeral });
       return;
     }
     session.setTextChannel(textChannel);
@@ -308,11 +309,11 @@ async function handleSlash(interaction: ChatInputCommandInteraction): Promise<vo
   });
 
   if ("error" in control) {
-    await interaction.reply({ content: control.error, ephemeral: true });
+    await interaction.reply({ content: control.error, flags: MessageFlags.Ephemeral });
     return;
   }
   if (typeof control.message === "string" && isNoop(control.message)) {
-    await interaction.reply({ content: control.message, ephemeral: true });
+    await interaction.reply({ content: control.message, flags: MessageFlags.Ephemeral });
     return;
   }
   const embed = typeof control.message === "string" ? okEmbed(control.message) : control.message;
@@ -329,13 +330,13 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
 
   if (interaction.customId === CONTROL_IDS.add) {
     if (!member.voice.channel) {
-      await interaction.reply({ content: "Métete a un canal de voz y vuelve a pulsar **➕ Añadir**.", ephemeral: true });
+      await interaction.reply({ content: "Métete a un canal de voz y vuelve a pulsar **➕ Añadir**.", flags: MessageFlags.Ephemeral });
       return;
     }
     if (session && !inBotChannel(member, session)) {
       await interaction.reply({
         content: `Estoy en **${session.channelName ?? "otro canal"}**. Métete ahí para añadir canciones.`,
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
       return;
     }
@@ -345,10 +346,10 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
 
   if (interaction.customId === CONTROL_IDS.queue) {
     if (!session) {
-      await interaction.reply({ content: "No hay cola. Pon algo con `/play`.", ephemeral: true });
+      await interaction.reply({ content: "No hay cola. Pon algo con `/play`.", flags: MessageFlags.Ephemeral });
       return;
     }
-    await interaction.reply({ ...queueView(session, 1), ephemeral: true });
+    await interaction.reply({ ...queueView(session, 1), flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -367,19 +368,19 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
 
   // Botones de control del panel.
   if (!session) {
-    await interaction.reply({ content: "Ya no estoy reproduciendo nada. Pon algo con `/play`.", ephemeral: true });
+    await interaction.reply({ content: "Ya no estoy reproduciendo nada. Pon algo con `/play`.", flags: MessageFlags.Ephemeral });
     return;
   }
   if (!inBotChannel(member, session)) {
     await interaction.reply({
       content: `Estoy en **${session.channelName ?? "otro canal"}**. Métete ahí para controlar la música.`,
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
 
   if (interaction.customId === CONTROL_IDS.stop && !can(member, "manage", session.voiceChannel)) {
-    await interaction.reply({ content: denialMessage("manage", interaction.guild.id), ephemeral: true });
+    await interaction.reply({ content: denialMessage("manage", interaction.guild.id), flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -409,7 +410,9 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
   })();
 
   if (isNoop(message) || /^(Voto|Ya votaste)/.test(message)) {
-    await interaction.followUp({ content: message, ephemeral: /^(No |Ya )/.test(message) });
+    // Los avisos de "no pasó nada" van en privado; los votos, a la vista de todos.
+    const quiet = /^(No |Ya )/.test(message);
+    await interaction.followUp({ content: message, ...(quiet ? { flags: MessageFlags.Ephemeral } : {}) });
   }
 
   // Refrescamos al instante el mensaje pulsado. Si es un panel antiguo que
@@ -428,7 +431,7 @@ async function handleAddModal(interaction: ModalSubmitInteraction): Promise<void
   if (!interaction.guild || !isGuildMember(interaction.member)) return;
   const query = interaction.fields.getTextInputValue(CONTROL_IDS.addQuery).trim();
   if (!query) {
-    await interaction.reply({ content: "Dime una canción o un enlace.", ephemeral: true });
+    await interaction.reply({ content: "Dime una canción o un enlace.", flags: MessageFlags.Ephemeral });
     return;
   }
   await interaction.deferReply();
@@ -444,11 +447,11 @@ async function handleRemoveSelect(interaction: StringSelectMenuInteraction): Pro
     return;
   }
   if (!inBotChannel(interaction.member, session)) {
-    await interaction.reply({ content: "Métete al canal de voz donde estoy para quitar canciones.", ephemeral: true });
+    await interaction.reply({ content: "Métete al canal de voz donde estoy para quitar canciones.", flags: MessageFlags.Ephemeral });
     return;
   }
   if (!can(interaction.member, "manage", session.voiceChannel)) {
-    await interaction.reply({ content: denialMessage("manage", interaction.guild.id), ephemeral: true });
+    await interaction.reply({ content: denialMessage("manage", interaction.guild.id), flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -463,13 +466,13 @@ async function handleRemoveSelect(interaction: StringSelectMenuInteraction): Pro
   const page = Math.max(1, Math.ceil(Math.max(1, hinted) / 10));
 
   if (index < 0) {
-    await interaction.reply({ content: "Esa canción ya no está en la cola.", ephemeral: true });
+    await interaction.reply({ content: "Esa canción ya no está en la cola.", flags: MessageFlags.Ephemeral });
     return;
   }
 
   const message = session.remove(index + 1);
   await interaction.update(queueView(session, page));
-  await interaction.followUp({ embeds: [okEmbed(message)], ephemeral: true });
+  await interaction.followUp({ embeds: [okEmbed(message)], flags: MessageFlags.Ephemeral });
 }
 
 /* ──────────────────────────── Mensajes de texto (Bemol ...) ──────────────────────────── */
@@ -695,14 +698,14 @@ async function runControl(
 
 async function handleAddFromMessage(interaction: MessageContextMenuCommandInteraction): Promise<void> {
   if (!interaction.guild || !isGuildMember(interaction.member)) {
-    await interaction.reply({ content: "Solo funciona dentro de un servidor.", ephemeral: true });
+    await interaction.reply({ content: "Solo funciona dentro de un servidor.", flags: MessageFlags.Ephemeral });
     return;
   }
   const content = interaction.targetMessage.content?.trim() ?? "";
   const url = content.match(/https?:\/\/\S+/)?.[0] ?? extractYoutubeUrl(content);
   const query = url ?? content.replace(/<@!?\d+>/g, "").trim();
   if (!query) {
-    await interaction.reply({ content: "Ese mensaje no tiene texto ni enlace que pueda poner.", ephemeral: true });
+    await interaction.reply({ content: "Ese mensaje no tiene texto ni enlace que pueda poner.", flags: MessageFlags.Ephemeral });
     return;
   }
   await interaction.deferReply();

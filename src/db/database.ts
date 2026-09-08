@@ -61,6 +61,8 @@ function migrate(database: DatabaseSync): void {
     );
   `);
   addColumnIfMissing(database, "guild_settings", "autoplay", "INTEGER NOT NULL DEFAULT 0");
+  addColumnIfMissing(database, "guild_settings", "radio_247_name", "TEXT");
+  addColumnIfMissing(database, "guild_settings", "radio_247_url", "TEXT");
 }
 
 function addColumnIfMissing(database: DatabaseSync, table: string, column: string, definition: string): void {

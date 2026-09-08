@@ -116,6 +116,8 @@ Las listas grandes se importan **en segundo plano**: empiezan a sonar las tres p
 
 **Radio**: `/radio lista` muestra emisoras seleccionadas (chill, lo-fi, jazz, soul, indie, metal…), `/radio buscar salsa` consulta el directorio comunitario [Radio Browser](https://www.radio-browser.info) por nombre o género, y `/radio poner` acepta un nombre o una URL de stream. Las radios suenan hasta que pares o pongas otra cosa.
 
+**Radio 24/7**: `/radio 247 emisora:Groove Salad` activa el modo 24/7 y deja esa emisora de fondo. Suena sola siempre que la cola se vacía, y se aparta en cuanto alguien pide una canción. `/radio 247` sin emisora la quita. Solo pueden cambiarlo quienes gestionan el servidor.
+
 **Autoplay**: con `/config autoplay activar:true`, al acabarse la cola Bemol sigue con canciones parecidas a la última, a partir del mix que YouTube genera para cada vídeo. Con `/stop` no se activa.
 
 **Normalización de volumen**: todas las fuentes pasan por el filtro `loudnorm` de ffmpeg (-14 LUFS), así no hay saltos de volumen entre canciones. Se desactiva con `AUDIO_NORMALIZE=false`.
@@ -129,7 +131,7 @@ Cada usuario tiene su biblioteca, ligada a su cuenta, no al servidor: funciona e
 | Comando | Qué hace |
 | --- | --- |
 | `/playlist crear Night Drive` | Crea una playlist (hasta 50 por usuario, 250 canciones cada una) |
-| `/playlist añadir Night Drive [canción]` | Añade la canción que suena, o la que indiques por nombre o enlace (también playlists de YouTube enteras) |
+| `/playlist añadir Night Drive [canción]` | Añade la canción que suena, o la que indiques por nombre o enlace. Con un álbum o playlist de Spotify, Deezer o YouTube importa la lista completa e informa de cuántas encontró |
 | `/playlist ver`, `/playlist lista` | Muestra una playlist con paginación, o todas las tuyas |
 | `/playlist reproducir Night Drive [mezclar]` | La pone en la cola, opcionalmente en orden aleatorio |
 | `/playlist quitar`, `/playlist eliminar` | Quita una canción por posición, o borra la playlist |
@@ -156,6 +158,7 @@ Cada servidor guarda su propia configuración en una base de datos SQLite (`data
 | `/config autodc` | Minutos sin música o sin gente antes de salir (0 = nunca) |
 | `/config volumen` | Volumen inicial del servidor |
 | `/config canal` | Canal de texto para el panel cuando no hay otro |
+| `/config autoplay` | Al acabarse la cola, seguir con canciones parecidas |
 
 ### Reanudación tras reinicios
 

@@ -1,4 +1,5 @@
 import {
+  MessageFlags,
   ChannelType,
   InteractionContextType,
   EmbedBuilder,
@@ -98,7 +99,7 @@ export async function handleConfig(interaction: ChatInputCommandInteraction): Pr
   const group = interaction.options.getSubcommandGroup(false);
 
   if (sub === "ver") {
-    await interaction.reply({ embeds: [configEmbed(guild.id)], ephemeral: true });
+    await interaction.reply({ embeds: [configEmbed(guild.id)], flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -107,7 +108,7 @@ export async function handleConfig(interaction: ChatInputCommandInteraction): Pr
     const user = interaction.options.getUser("usuario");
     if (sub === "añadir" && user) {
       if (user.bot) {
-        await interaction.reply({ content: "Un bot no puede ser DJ.", ephemeral: true });
+        await interaction.reply({ content: "Un bot no puede ser DJ.", flags: MessageFlags.Ephemeral });
         return;
       }
       note = addDj(guild.id, user.id) ? `<@${user.id}> ahora es DJ.` : `<@${user.id}> ya era DJ.`;
@@ -117,7 +118,7 @@ export async function handleConfig(interaction: ChatInputCommandInteraction): Pr
       clearDjs(guild.id);
       note = "Sin DJs: cualquiera en el canal puede gestionar la música.";
     }
-    await interaction.reply({ content: `✅ ${note}`, embeds: [configEmbed(guild.id)], ephemeral: true });
+    await interaction.reply({ content: `✅ ${note}`, embeds: [configEmbed(guild.id)], flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -138,7 +139,7 @@ export async function handleConfig(interaction: ChatInputCommandInteraction): Pr
       const idle = interaction.options.getInteger("sin_musica");
       const empty = interaction.options.getInteger("sin_gente");
       if (idle === null && empty === null) {
-        await interaction.reply({ content: "Indica `sin_musica`, `sin_gente` o los dos.", ephemeral: true });
+        await interaction.reply({ content: "Indica `sin_musica`, `sin_gente` o los dos.", flags: MessageFlags.Ephemeral });
         return;
       }
       updateGuildSettings(guild.id, {
@@ -184,16 +185,18 @@ export async function handleConfig(interaction: ChatInputCommandInteraction): Pr
         voteskipMinListeners: 3,
         musicChannelId: null,
         autoplay: false,
+        radio247Name: null,
+        radio247Url: null,
       });
       note = "Configuración restablecida.";
       break;
     }
     default:
-      await interaction.reply({ content: "Subcomando desconocido.", ephemeral: true });
+      await interaction.reply({ content: "Subcomando desconocido.", flags: MessageFlags.Ephemeral });
       return;
   }
 
-  await interaction.reply({ content: `✅ ${note}`, embeds: [configEmbed(guild.id)], ephemeral: true });
+  await interaction.reply({ content: `✅ ${note}`, embeds: [configEmbed(guild.id)], flags: MessageFlags.Ephemeral });
 }
 
 export function configEmbed(guildId: string): EmbedBuilder {
@@ -219,6 +222,11 @@ export function configEmbed(guildId: string): EmbedBuilder {
       },
       { name: "💬 Canal de música", value: settings.musicChannelId ? `<#${settings.musicChannelId}>` : "El chat desde el que se pide", inline: true },
       { name: "🔀 Autoplay", value: settings.autoplay ? "Activado" : "Desactivado", inline: true },
+      {
+        name: "📻 Radio de fondo",
+        value: settings.radio247Url ? `${settings.radio247Name ?? "Emisora"} (24/7)` : "Ninguna",
+        inline: true,
+      },
     )
     .setFooter({ text: "Cambia valores con /config dj · volumen · 247 · autodc · voteskip · autoplay · canal · reiniciar" });
 }

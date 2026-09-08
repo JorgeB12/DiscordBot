@@ -2,7 +2,7 @@ import { existsSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { generateDependencyReport } from "@discordjs/voice";
-import { Client, Events, GatewayIntentBits, Partials } from "discord.js";
+import { Client, Events, GatewayIntentBits, MessageFlags, Partials } from "discord.js";
 import { ensureFfmpegOnPath } from "./audio/ffmpeg.js";
 import { config } from "./config.js";
 import { closeDb } from "./db/database.js";
@@ -48,7 +48,7 @@ async function main(): Promise<void> {
       const raw = (error as { rawError?: unknown }).rawError;
       if (raw) console.error("[interaction] detalle:", JSON.stringify(raw).slice(0, 1500));
       if (!interaction.isRepliable()) return;
-      const reply = { content: "Falló el comando.", ephemeral: true };
+      const reply = { content: "Falló el comando.", flags: MessageFlags.Ephemeral } as const;
       if (interaction.deferred || interaction.replied) {
         await interaction.followUp(reply).catch(() => undefined);
       } else {

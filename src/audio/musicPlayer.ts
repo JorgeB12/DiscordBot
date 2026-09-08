@@ -27,6 +27,8 @@ export type Song = {
   requestedBy: Requester;
   /** De dónde sale el audio. Sin valor = YouTube. "stream" = radio o URL de audio directa. */
   kind?: SongKind;
+  /** Plataforma desde la que se pidió, si el audio se buscó en YouTube (Spotify, Deezer…). */
+  via?: string;
 };
 
 export type ResolvedTracks = {
@@ -110,14 +112,14 @@ async function resolveOtherUrl(url: string, requestedBy: Requester): Promise<Res
   if (externalKind(url)) {
     const list = await resolveExternal(url);
     if (!list.tracks.length) throw new Error(`Esa lista de ${list.source} está vacía.`);
-    const first = await matchMany(list.tracks.slice(0, IMPORT_FIRST), requestedBy);
+    const first = await matchMany(list.tracks.slice(0, IMPORT_FIRST), requestedBy, list.source);
     if (!first.length) throw new Error(`No encontré en YouTube ninguna canción de esa lista de ${list.source}.`);
     const remaining = list.tracks.slice(IMPORT_FIRST);
     const title = list.tracks.length > 1 ? `${list.title} (${list.source})` : undefined;
     return {
       songs: first,
       playlistTitle: title,
-      pending: remaining.length ? importInBatches(remaining, requestedBy) : undefined,
+      pending: remaining.length ? importInBatches(remaining, requestedBy, list.source) : undefined,
       pendingCount: remaining.length,
     };
   }
@@ -174,16 +176,16 @@ export function streamSong(url: string, requestedBy: Requester, name?: string, e
   };
 }
 
-async function* importInBatches(tracks: ExternalTrack[], requestedBy: Requester): AsyncGenerator<Song[]> {
+export async function* importInBatches(tracks: ExternalTrack[], requestedBy: Requester, via: string): AsyncGenerator<Song[]> {
   for (let i = 0; i < tracks.length; i += IMPORT_BATCH) {
-    const batch = await matchMany(tracks.slice(i, i + IMPORT_BATCH), requestedBy);
+    const batch = await matchMany(tracks.slice(i, i + IMPORT_BATCH), requestedBy, via);
     if (batch.length) yield batch;
   }
 }
 
-async function matchMany(tracks: ExternalTrack[], requestedBy: Requester): Promise<Song[]> {
+async function matchMany(tracks: ExternalTrack[], requestedBy: Requester, via: string): Promise<Song[]> {
   const results = await Promise.all(tracks.map((track) => matchOnYoutube(track, requestedBy).catch(() => null)));
-  return results.filter((song): song is Song => song !== null);
+  return results.filter((song): song is Song => song !== null).map((song) => ({ ...song, via }));
 }
 
 /** Encuentra en YouTube la versión de audio de una canción descrita por título y artista. */

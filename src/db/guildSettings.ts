@@ -18,6 +18,9 @@ export type GuildSettings = {
   musicChannelId: string | null;
   /** Al acabarse la cola, seguir con canciones parecidas. */
   autoplay: boolean;
+  /** Emisora que suena de fondo en modo 24/7 cuando la cola se vacía. */
+  radio247Name: string | null;
+  radio247Url: string | null;
 };
 
 type Row = {
@@ -31,6 +34,8 @@ type Row = {
   voteskip_min_listeners: number;
   music_channel_id: string | null;
   autoplay: number;
+  radio_247_name: string | null;
+  radio_247_url: string | null;
 };
 
 const cache = new Map<string, GuildSettings>();
@@ -47,6 +52,8 @@ export function defaultSettings(guildId: string): GuildSettings {
     voteskipMinListeners: 3,
     musicChannelId: null,
     autoplay: false,
+    radio247Name: null,
+    radio247Url: null,
   };
 }
 
@@ -67,6 +74,8 @@ export function getGuildSettings(guildId: string): GuildSettings {
         voteskipMinListeners: row.voteskip_min_listeners,
         musicChannelId: row.music_channel_id,
         autoplay: row.autoplay === 1,
+        radio247Name: row.radio_247_name,
+        radio247Url: row.radio_247_url,
       }
     : defaultSettings(guildId);
   cache.set(guildId, settings);
@@ -79,8 +88,9 @@ export function updateGuildSettings(guildId: string, patch: Partial<Omit<GuildSe
     .prepare(
       `INSERT INTO guild_settings (
          guild_id, default_volume, stay_247, idle_leave_min, empty_leave_min,
-         voteskip, voteskip_percent, voteskip_min_listeners, music_channel_id, autoplay, updated_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         voteskip, voteskip_percent, voteskip_min_listeners, music_channel_id, autoplay,
+         radio_247_name, radio_247_url, updated_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(guild_id) DO UPDATE SET
          default_volume = excluded.default_volume,
          stay_247 = excluded.stay_247,
@@ -91,6 +101,8 @@ export function updateGuildSettings(guildId: string, patch: Partial<Omit<GuildSe
          voteskip_min_listeners = excluded.voteskip_min_listeners,
          music_channel_id = excluded.music_channel_id,
          autoplay = excluded.autoplay,
+         radio_247_name = excluded.radio_247_name,
+         radio_247_url = excluded.radio_247_url,
          updated_at = excluded.updated_at`,
     )
     .run(
@@ -104,6 +116,8 @@ export function updateGuildSettings(guildId: string, patch: Partial<Omit<GuildSe
       next.voteskipMinListeners,
       next.musicChannelId,
       next.autoplay ? 1 : 0,
+      next.radio247Name,
+      next.radio247Url,
       Date.now(),
     );
   cache.set(guildId, next);

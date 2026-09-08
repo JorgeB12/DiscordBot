@@ -1,4 +1,5 @@
 import {
+  MessageFlags,
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
@@ -170,7 +171,7 @@ export async function handleLibraryAutocomplete(interaction: AutocompleteInterac
 
 export async function handleLibrarySlash(interaction: ChatInputCommandInteraction): Promise<void> {
   if (!interaction.guild || !isGuildMember(interaction.member)) {
-    await interaction.reply({ content: "Usa este comando en un servidor.", ephemeral: true });
+    await interaction.reply({ content: "Usa este comando en un servidor.", flags: MessageFlags.Ephemeral });
     return;
   }
   const member = interaction.member;
@@ -179,10 +180,10 @@ export async function handleLibrarySlash(interaction: ChatInputCommandInteractio
   if (name === "like") {
     const song = currentSong(member);
     if (!song) {
-      await interaction.reply({ content: "No hay nada sonando que guardar.", ephemeral: true });
+      await interaction.reply({ content: "No hay nada sonando que guardar.", flags: MessageFlags.Ephemeral });
       return;
     }
-    await interaction.reply({ content: toggleFavorite(member.id, song), ephemeral: true });
+    await interaction.reply({ content: toggleFavorite(member.id, song), flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -200,10 +201,10 @@ async function handleFavorites(interaction: ChatInputCommandInteraction, member:
 
   if (sub === "ver") {
     if (!favorites.length) {
-      await interaction.reply({ content: "Aún no tienes favoritas. Usa `/like` o el botón ❤️ del panel mientras suena algo.", ephemeral: true });
+      await interaction.reply({ content: "Aún no tienes favoritas. Usa `/like` o el botón ❤️ del panel mientras suena algo.", flags: MessageFlags.Ephemeral });
       return;
     }
-    await interaction.reply({ embeds: [favoritesEmbed(member, favorites, 1)], components: favoritesControls(1, pageCount(favorites.length)), ephemeral: true });
+    await interaction.reply({ embeds: [favoritesEmbed(member, favorites, 1)], components: favoritesControls(1, pageCount(favorites.length)), flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -211,16 +212,16 @@ async function handleFavorites(interaction: ChatInputCommandInteraction, member:
     const position = interaction.options.getInteger("posicion", true);
     const song = favorites[position - 1];
     if (!song) {
-      await interaction.reply({ content: "Esa posición no existe en tus favoritas.", ephemeral: true });
+      await interaction.reply({ content: "Esa posición no existe en tus favoritas.", flags: MessageFlags.Ephemeral });
       return;
     }
     removeFavorite(member.id, song.id);
-    await interaction.reply({ content: `💔 Quité **${song.title}** de tus favoritas.`, ephemeral: true });
+    await interaction.reply({ content: `💔 Quité **${song.title}** de tus favoritas.`, flags: MessageFlags.Ephemeral });
     return;
   }
 
   if (!favorites.length) {
-    await interaction.reply({ content: "Aún no tienes favoritas.", ephemeral: true });
+    await interaction.reply({ content: "Aún no tienes favoritas.", flags: MessageFlags.Ephemeral });
     return;
   }
   await interaction.deferReply();
@@ -240,10 +241,10 @@ async function handlePlaylist(interaction: ChatInputCommandInteraction, member: 
       const playlist = createPlaylist(member.id, member.displayName, nameArg!);
       await interaction.reply({
         content: `✅ Playlist **${playlist.name}** creada. Añade canciones con \`/playlist añadir ${playlist.name}\` o con el botón 📋 del panel.`,
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
     } catch (error) {
-      await interaction.reply({ content: error instanceof Error ? error.message : "No pude crear la playlist.", ephemeral: true });
+      await interaction.reply({ content: error instanceof Error ? error.message : "No pude crear la playlist.", flags: MessageFlags.Ephemeral });
     }
     return;
   }
@@ -251,16 +252,16 @@ async function handlePlaylist(interaction: ChatInputCommandInteraction, member: 
   if (sub === "lista") {
     const playlists = listPlaylists(member.id);
     if (!playlists.length) {
-      await interaction.reply({ content: "No tienes playlists. Crea una con `/playlist crear`.", ephemeral: true });
+      await interaction.reply({ content: "No tienes playlists. Crea una con `/playlist crear`.", flags: MessageFlags.Ephemeral });
       return;
     }
-    await interaction.reply({ embeds: [playlistsEmbed(member, playlists)], ephemeral: true });
+    await interaction.reply({ embeds: [playlistsEmbed(member, playlists)], flags: MessageFlags.Ephemeral });
     return;
   }
 
   const playlist = findPlaylist(member.id, nameArg ?? "");
   if (!playlist) {
-    await interaction.reply({ content: `No tienes ninguna playlist llamada **${nameArg}**. Mira \`/playlist lista\`.`, ephemeral: true });
+    await interaction.reply({ content: `No tienes ninguna playlist llamada **${nameArg}**. Mira \`/playlist lista\`.`, flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -270,26 +271,50 @@ async function handlePlaylist(interaction: ChatInputCommandInteraction, member: 
       if (!query) {
         const song = currentSong(member);
         if (!song) {
-          await interaction.reply({ content: "No hay nada sonando. Indica una canción o un enlace.", ephemeral: true });
+          await interaction.reply({ content: "No hay nada sonando. Indica una canción o un enlace.", flags: MessageFlags.Ephemeral });
           return;
         }
         const { added } = addTracks(playlist.id, [song]);
         await interaction.reply({
           content: added ? `✅ **${song.title}** añadida a **${playlist.name}**.` : `**${song.title}** ya estaba en **${playlist.name}**.`,
-          ephemeral: true,
+          flags: MessageFlags.Ephemeral,
         });
         return;
       }
-      await interaction.deferReply({ ephemeral: true });
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       const { resolveTracks } = await import("../audio/musicPlayer.js");
       try {
-        const { songs } = await resolveTracks(query, { id: member.id, name: member.displayName });
-        rememberSongs(songs);
-        const { added, skipped } = addTracks(playlist.id, songs.map(toLibrarySong));
-        const summary = songs.length === 1 ? `**${songs[0]!.title}**` : `${added} canciones`;
+        const requester = { id: member.id, name: member.displayName };
+        const { songs, pending, pendingCount = 0 } = await resolveTracks(query, requester);
+        const found = [...songs];
+
+        // Álbumes y playlists externas llegan por lotes: aquí sí esperamos a todos.
+        if (pending) {
+          const total = songs.length + pendingCount;
+          let lastEdit = 0;
+          for await (const batch of pending) {
+            found.push(...batch);
+            if (found.length >= LIMITS.tracksPerPlaylist) break;
+            if (Date.now() - lastEdit > 4_000) {
+              lastEdit = Date.now();
+              await interaction
+                .editReply(`⏳ Importando a **${playlist.name}**… ${found.length} de ${total} encontradas.`)
+                .catch(() => undefined);
+            }
+          }
+        }
+
+        rememberSongs(found);
+        const { added, skipped } = addTracks(playlist.id, found.map(toLibrarySong));
+        const missing = songs.length + pendingCount - found.length;
+        const summary = found.length === 1 && added ? `**${found[0]!.title}**` : `${added} ${added === 1 ? "canción" : "canciones"}`;
+        const notes = [
+          skipped ? `${skipped} ya estaban o no cabían` : null,
+          missing > 0 ? `${missing} no las encontré en YouTube` : null,
+        ].filter((note) => note !== null);
         await interaction.editReply(
           added
-            ? `✅ ${summary} añadida${songs.length === 1 ? "" : "s"} a **${playlist.name}**.${skipped ? ` (${skipped} ya estaban o no cabían)` : ""}`
+            ? `✅ ${summary} ${added === 1 ? "añadida" : "añadidas"} a **${playlist.name}**.${notes.length ? ` (${notes.join(" · ")})` : ""}`
             : `Nada nuevo: ya estaba en **${playlist.name}** o la playlist está llena.`,
         );
       } catch (error) {
@@ -302,14 +327,14 @@ async function handlePlaylist(interaction: ChatInputCommandInteraction, member: 
       await interaction.reply({
         embeds: [playlistEmbed(playlist, tracks, 1)],
         components: playlistControls(playlist, 1, pageCount(tracks.length), true),
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
       return;
     }
     case "reproducir": {
       const tracks = playlistTracks(playlist.id);
       if (!tracks.length) {
-        await interaction.reply({ content: `**${playlist.name}** está vacía.`, ephemeral: true });
+        await interaction.reply({ content: `**${playlist.name}** está vacía.`, flags: MessageFlags.Ephemeral });
         return;
       }
       await interaction.deferReply();
@@ -325,19 +350,19 @@ async function handlePlaylist(interaction: ChatInputCommandInteraction, member: 
       const removed = removeTrack(playlist.id, position);
       await interaction.reply({
         content: removed ? `🗑️ Quité **${removed.title}** de **${playlist.name}**.` : "Esa posición no existe en la playlist.",
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
       return;
     }
     case "eliminar": {
       deletePlaylist(playlist.id);
-      await interaction.reply({ content: `🗑️ Playlist **${playlist.name}** eliminada.`, ephemeral: true });
+      await interaction.reply({ content: `🗑️ Playlist **${playlist.name}** eliminada.`, flags: MessageFlags.Ephemeral });
       return;
     }
     case "compartir": {
       const tracks = playlistTracks(playlist.id);
       if (!tracks.length) {
-        await interaction.reply({ content: `**${playlist.name}** está vacía; añade canciones antes de compartirla.`, ephemeral: true });
+        await interaction.reply({ content: `**${playlist.name}** está vacía; añade canciones antes de compartirla.`, flags: MessageFlags.Ephemeral });
         return;
       }
       await interaction.reply({
@@ -347,7 +372,7 @@ async function handlePlaylist(interaction: ChatInputCommandInteraction, member: 
       return;
     }
     default:
-      await interaction.reply({ content: "Subcomando desconocido.", ephemeral: true });
+      await interaction.reply({ content: "Subcomando desconocido.", flags: MessageFlags.Ephemeral });
   }
 }
 
@@ -365,7 +390,7 @@ export async function handleLibraryComponent(
   if (id.startsWith(LIB_IDS.searchPlay) && interaction.isButton()) {
     const song = recallSong(id.slice(LIB_IDS.searchPlay.length));
     if (!song) {
-      await interaction.reply({ content: "Esa búsqueda ya caducó. Vuelve a usar `/buscar`.", ephemeral: true });
+      await interaction.reply({ content: "Esa búsqueda ya caducó. Vuelve a usar `/buscar`.", flags: MessageFlags.Ephemeral });
       return true;
     }
     await interaction.deferReply();
@@ -378,10 +403,10 @@ export async function handleLibraryComponent(
   if (id === LIB_IDS.favToggle && interaction.isButton()) {
     const song = currentSong(member);
     if (!song) {
-      await interaction.reply({ content: "Ya no suena nada que guardar.", ephemeral: true });
+      await interaction.reply({ content: "Ya no suena nada que guardar.", flags: MessageFlags.Ephemeral });
       return true;
     }
-    await interaction.reply({ content: toggleFavorite(member.id, song), ephemeral: true });
+    await interaction.reply({ content: toggleFavorite(member.id, song), flags: MessageFlags.Ephemeral });
     return true;
   }
 
@@ -389,14 +414,14 @@ export async function handleLibraryComponent(
   if (id.startsWith(LIB_IDS.saveSong) && interaction.isButton()) {
     const song = recallSong(id.slice(LIB_IDS.saveSong.length));
     if (!song) {
-      await interaction.reply({ content: "No encuentro esa canción; vuelve a buscarla o a ponerla.", ephemeral: true });
+      await interaction.reply({ content: "No encuentro esa canción; vuelve a buscarla o a ponerla.", flags: MessageFlags.Ephemeral });
       return true;
     }
     rememberSongs([song]);
     await interaction.reply({
       content: `¿Dónde guardo **${song.title}**?`,
       components: [saveSelect(member.id, song.id)],
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return true;
   }
@@ -405,7 +430,7 @@ export async function handleLibraryComponent(
   if (id === LIB_IDS.savePanel && interaction.isButton()) {
     const queue = queueSnapshot(member);
     if (!queue.length) {
-      await interaction.reply({ content: "No hay nada que guardar ahora mismo.", ephemeral: true });
+      await interaction.reply({ content: "No hay nada que guardar ahora mismo.", flags: MessageFlags.Ephemeral });
       return true;
     }
     rememberSongs(queue);
@@ -415,7 +440,7 @@ export async function handleLibraryComponent(
       await interaction.reply({
         content: `¿Dónde guardo **${song.title}**?`,
         components: [saveSelect(member.id, song.id)],
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
       return true;
     }
@@ -425,7 +450,7 @@ export async function handleLibraryComponent(
     await interaction.reply({
       content: `Suena **${queue[0]!.title}** y ${others === 1 ? "hay 1 canción más" : `hay ${others} canciones más`} en la cola. ¿Qué guardo?`,
       components: [scopeButtons(queue.length)],
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return true;
   }
@@ -487,15 +512,15 @@ export async function handleLibraryComponent(
       if (song) songs = [song];
     }
     if (!songs.length) {
-      await interaction.reply({ content: "No hay canciones que guardar.", ephemeral: true });
+      await interaction.reply({ content: "No hay canciones que guardar.", flags: MessageFlags.Ephemeral });
       return true;
     }
     try {
       const playlist = createPlaylist(member.id, member.displayName, name);
       const { added } = addTracks(playlist.id, songs);
-      await interaction.reply({ content: `✅ Playlist **${playlist.name}** creada con ${added} ${added === 1 ? "canción" : "canciones"}.`, ephemeral: true });
+      await interaction.reply({ content: `✅ Playlist **${playlist.name}** creada con ${added} ${added === 1 ? "canción" : "canciones"}.`, flags: MessageFlags.Ephemeral });
     } catch (error) {
-      await interaction.reply({ content: error instanceof Error ? error.message : "No pude crear la playlist.", ephemeral: true });
+      await interaction.reply({ content: error instanceof Error ? error.message : "No pude crear la playlist.", flags: MessageFlags.Ephemeral });
     }
     return true;
   }
@@ -503,7 +528,7 @@ export async function handleLibraryComponent(
   if (id === LIB_IDS.queueSave && interaction.isButton()) {
     const session = getVoiceSession(member.guild.id);
     if (!session?.current && !session?.queue.length) {
-      await interaction.reply({ content: "La cola está vacía.", ephemeral: true });
+      await interaction.reply({ content: "La cola está vacía.", flags: MessageFlags.Ephemeral });
       return true;
     }
     await interaction.showModal(queueSaveModal());
@@ -516,7 +541,7 @@ export async function handleLibraryComponent(
     const [, action, rawId, rawPage] = match;
     const playlist = getPlaylist(Number(rawId));
     if (!playlist) {
-      await interaction.reply({ content: "Esa playlist ya no existe.", ephemeral: true });
+      await interaction.reply({ content: "Esa playlist ya no existe.", flags: MessageFlags.Ephemeral });
       return true;
     }
     const tracks = playlistTracks(playlist.id);
@@ -530,23 +555,23 @@ export async function handleLibraryComponent(
     }
     if (action === "copy") {
       if (playlist.ownerId === member.id) {
-        await interaction.reply({ content: `**${playlist.name}** ya es tuya: está en \`/playlist lista\`.`, ephemeral: true });
+        await interaction.reply({ content: `**${playlist.name}** ya es tuya: está en \`/playlist lista\`.`, flags: MessageFlags.Ephemeral });
         return true;
       }
       if (findPlaylist(member.id, playlist.name)) {
-        await interaction.reply({ content: `Ya tienes una playlist llamada **${playlist.name}**; no la copio otra vez.`, ephemeral: true });
+        await interaction.reply({ content: `Ya tienes una playlist llamada **${playlist.name}**; no la copio otra vez.`, flags: MessageFlags.Ephemeral });
         return true;
       }
       try {
         const copy = copyPlaylist(playlist.id, member.id, member.displayName);
-        await interaction.reply({ content: `✅ Guardada como **${copy.name}** en tus playlists.`, ephemeral: true });
+        await interaction.reply({ content: `✅ Guardada como **${copy.name}** en tus playlists.`, flags: MessageFlags.Ephemeral });
       } catch (error) {
-        await interaction.reply({ content: error instanceof Error ? error.message : "No pude copiarla.", ephemeral: true });
+        await interaction.reply({ content: error instanceof Error ? error.message : "No pude copiarla.", flags: MessageFlags.Ephemeral });
       }
       return true;
     }
     if (!tracks.length) {
-      await interaction.reply({ content: "Esa playlist está vacía.", ephemeral: true });
+      await interaction.reply({ content: "Esa playlist está vacía.", flags: MessageFlags.Ephemeral });
       return true;
     }
     await interaction.deferReply();
@@ -568,7 +593,7 @@ export async function handleLibraryComponent(
       return true;
     }
     if (!favorites.length) {
-      await interaction.reply({ content: "No tienes favoritas.", ephemeral: true });
+      await interaction.reply({ content: "No tienes favoritas.", flags: MessageFlags.Ephemeral });
       return true;
     }
     await interaction.deferReply();
@@ -580,7 +605,7 @@ export async function handleLibraryComponent(
     return true;
   }
 
-  await interaction.reply({ content: "Ese botón ya no hace nada.", ephemeral: true }).catch(() => undefined);
+  await interaction.reply({ content: "Ese botón ya no hace nada.", flags: MessageFlags.Ephemeral }).catch(() => undefined);
   return true;
 }
 
